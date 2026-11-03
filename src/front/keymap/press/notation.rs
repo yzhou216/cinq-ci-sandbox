@@ -23,21 +23,17 @@ impl Press {
     fn read(token: &str) -> Result<Self, String> {
         let (held, key) = modifiers(token)?;
         let key = match key {
-            SPACE => Name::Char(' '),
+            SPACE => Some(Name::Char(' ')),
             key => match key.parse::<Key>() {
                 Ok(Key::Named(named)) if MODIFIERS.contains(&named) => {
                     return Err(format!("`{token}` only changes the keys pressed with it"));
                 }
-                Ok(Key::Named(named)) => Name::Named(named),
-                Ok(Key::Character(text)) => text
-                    .chars()
-                    .exactly_one()
-                    .ok()
-                    .map(Name::Char)
-                    .ok_or_else(|| format!("`{token}` names no key"))?,
-                Err(_) => return Err(format!("`{token}` names no key")),
+                Ok(Key::Named(named)) => Some(Name::Named(named)),
+                Ok(Key::Character(text)) => text.chars().exactly_one().ok().map(Name::Char),
+                Err(_) => None,
             },
-        };
+        }
+        .ok_or_else(|| format!("`{token}` names no key"))?;
         let shift = held.contains(&NamedKey::Shift);
         // Shift on a letter makes the capital, which is the key it types
         let (key, shift) = match key {

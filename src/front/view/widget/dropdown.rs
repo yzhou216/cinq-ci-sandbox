@@ -146,19 +146,6 @@ struct State {
     menu: Tree,
 }
 
-impl Default for State {
-    fn default() -> Self {
-        Self {
-            shared: Shared::default(),
-            focused: false,
-            over: false,
-            labels: Vec::new(),
-            placeholder: paragraph::Plain::default(),
-            menu: Tree::empty(),
-        }
-    }
-}
-
 impl Focusable for State {
     fn is_focused(&self) -> bool {
         self.focused
@@ -214,7 +201,14 @@ impl<'a, T: ToString + PartialEq + Clone + 'a> Widget<Message, Theme, Renderer>
     }
 
     fn state(&self) -> tree::State {
-        tree::State::new(State::default())
+        tree::State::new(State {
+            shared: Shared::default(),
+            focused: false,
+            over: false,
+            labels: Vec::new(),
+            placeholder: paragraph::Plain::default(),
+            menu: Tree::empty(),
+        })
     }
 
     fn size(&self) -> Size<Length> {
@@ -381,8 +375,7 @@ impl<'a, T: ToString + PartialEq + Clone + 'a> Widget<Message, Theme, Renderer>
         _renderer: &Renderer,
         operation: &mut dyn Operation,
     ) {
-        let state = tree.state.downcast_mut::<State>();
-        operation.focusable(None, layout.bounds(), state);
+        operation.focusable(None, layout.bounds(), tree.state.downcast_mut::<State>());
     }
 
     fn mouse_interaction(

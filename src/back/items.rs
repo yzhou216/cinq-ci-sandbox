@@ -17,12 +17,9 @@ pub(super) fn replaced<T>(items: Vec<T>, index: usize, change: impl FnOnce(T) ->
     items
         .into_iter()
         .enumerate()
-        .map(|(position, item)| {
-            if let Some(change) = change.take_if(|_| position == index) {
-                change(item)
-            } else {
-                item
-            }
+        .map(|(at, item)| match change.take_if(|_| at == index) {
+            Some(change) => change(item),
+            None => item,
         })
         .collect()
 }
@@ -34,12 +31,8 @@ pub(super) fn replaced_where<T>(
     matches: impl Fn(&T) -> bool,
     change: impl FnOnce(T) -> T,
 ) -> Vec<T> {
-    let mut change = Some(change);
-    items
-        .into_iter()
-        .map(|item| match change.take_if(|_| matches(&item)) {
-            Some(change) => change(item),
-            None => item,
-        })
-        .collect()
+    match items.iter().position(matches) {
+        Some(index) => replaced(items, index, change),
+        None => items,
+    }
 }

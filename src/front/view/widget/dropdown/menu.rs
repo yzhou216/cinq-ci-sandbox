@@ -35,7 +35,7 @@ use iced::{
     },
     border,
     keyboard::{self, Key, key::Named},
-    overlay,
+    overlay, padding,
     widget::{Scrollable, operation::AbsoluteOffset},
 };
 
@@ -356,14 +356,9 @@ impl<T: ToString + Clone> Widget<Message, Theme, Renderer> for Rows<'_, T> {
                 };
                 let highlighted = self.choice.shared.highlight.get() == Some(row);
                 if highlighted {
-                    let inside = Rectangle {
-                        x: bounds.x + look.border.width,
-                        width: bounds.width - look.border.width * 2.0,
-                        ..bounds
-                    };
                     renderer.fill_quad(
                         renderer::Quad {
-                            bounds: inside,
+                            bounds: bounds.shrink(padding::horizontal(look.border.width)),
                             border: border::rounded(look.border.radius),
                             ..renderer::Quad::default()
                         },

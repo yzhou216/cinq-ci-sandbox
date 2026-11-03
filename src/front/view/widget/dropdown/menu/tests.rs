@@ -52,9 +52,13 @@ fn outcome(act: impl Fn(Choice<'_, isize>, &mut Shell<'_, Message>)) -> Outcome 
     }
 }
 
-/// Presses `key` alone in a menu
-fn press(choice: Choice<'_, isize>, key: Key, shell: &mut Shell<'_, Message>) {
-    choice.press(&key, Press::from_key(&key, Modifiers::empty()), shell);
+/// Presses each of `keys` alone in turn in a menu that [`outcome`] opens,
+/// and returns what they amount to
+fn pressed(keys: &[Key]) -> Outcome {
+    outcome(|choice, shell| {
+        keys.iter()
+            .for_each(|key| choice.press(key, Press::from_key(key, Modifiers::empty()), shell));
+    })
 }
 
 #[test]
@@ -106,23 +110,14 @@ fn enter_picks_the_highlight_and_go_closes_the_menu_without_keeping_its_key() {
         captured,
         picked,
     };
+    assert_eq!(pressed(&[named(Named::Enter)]), closed(true, Some(1)));
     assert_eq!(
-        outcome(|choice, shell| press(choice, named(Named::Enter), shell)),
-        closed(true, Some(1))
-    );
-    assert_eq!(
-        outcome(|choice, shell| {
-            press(choice, letter("j"), shell);
-            press(choice, named(Named::Enter), shell);
-        }),
+        pressed(&[letter("j"), named(Named::Enter)]),
         closed(true, Some(2))
     );
+    assert_eq!(pressed(&[named(Named::Space)]), closed(false, None));
     assert_eq!(
-        outcome(|choice, shell| press(choice, named(Named::Space), shell)),
-        closed(false, None)
-    );
-    assert_eq!(
-        outcome(|choice, shell| press(choice, letter("d"), shell)),
+        pressed(&[letter("d")]),
         Outcome {
             open: true,
             captured: true,

@@ -28,10 +28,10 @@ fn keys_act_alone_when_bound_by_themselves_or_to_go_and_panic() {
 
 #[test]
 fn enter_acts_at_once_only_when_bound_to_go_or_panic() {
-    let enter = || one("Enter").expect("Enter is a named key");
-    assert!(!Keymap::default().acts_at_once(enter()));
+    let enter = one("Enter").expect("Enter is a named key");
+    assert!(!Keymap::default().acts_at_once(enter));
     let bound = Keymap::default().with(Action::Go, vec![keys("Enter")]);
-    assert!(bound.acts_at_once(enter()));
+    assert!(bound.acts_at_once(enter));
 }
 
 #[test]
@@ -72,9 +72,8 @@ fn key_that_breaks_off_a_command_starts_a_new_one() {
 fn keys_typed_halfway_list_what_can_follow_them() {
     let keymap = Keymap::default();
     let next = |text: &str| -> Vec<(String, Action)> {
-        let pending = keys(text);
         keymap
-            .continuations(&pending)
+            .continuations(&keys(text))
             .map(|(rest, action)| (written(rest), action))
             .collect()
     };

@@ -20,7 +20,7 @@ use iced::{
 
 use super::{
     pressed,
-    wrap::{Intercept, Wrap},
+    wrap::{Intercept, wrap},
 };
 use crate::front::{Message, view::theme};
 
@@ -75,11 +75,7 @@ impl Button<'_> {
 
 impl<'a> From<Button<'a>> for Element<'a, Message> {
     fn from(button: Button<'a>) -> Self {
-        Wrap {
-            content: button.look.into(),
-            intercept: OnPress(button.on_press),
-        }
-        .into()
+        wrap(button.look, OnPress(button.on_press))
     }
 }
 

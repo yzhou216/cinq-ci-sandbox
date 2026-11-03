@@ -107,19 +107,14 @@ impl Workspace {
     /// start fading their target and stop cues stop theirs.  Audio cues need
     /// nothing here, because making sound is the job of the audio output.
     fn started(self) -> Self {
-        let (active, due): (Vec<Active>, Vec<Option<CueId>>) = self
+        let due: Vec<CueId> = self
             .active
-            .into_iter()
-            .map(|active| {
-                if active.due() {
-                    (active.begun(), Some(active.id))
-                } else {
-                    (active, None)
-                }
-            })
-            .unzip();
+            .iter()
+            .filter(|active| active.due())
+            .map(|active| active.id)
+            .collect();
+        let active = self.active.into_iter().map(Active::begun).collect();
         due.into_iter()
-            .flatten()
             .fold(Self { active, ..self }, Self::with_effect_of)
     }
 

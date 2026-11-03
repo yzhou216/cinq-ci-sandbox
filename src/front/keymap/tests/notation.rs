@@ -11,23 +11,17 @@ use super::*;
 
 #[test]
 fn notation_writes_keys_the_way_it_reads_them() {
-    let written_as = |text: &str| written(&keys(text));
-    assert_eq!(
-        written_as("Space Enter  Escape F35"),
-        "Space Enter Escape F35"
-    );
-    assert_eq!(
-        written_as("Control+d Alt+x Shift+Tab"),
-        "Control+d Alt+x Shift+Tab"
-    );
-    assert_eq!(
-        written_as("Alt+Control+ArrowUp Control++"),
-        "Control+Alt+ArrowUp Control++"
-    );
-    assert_eq!(
-        written_as("Shift+a G < + Shift+Space"),
-        "A G < + Shift+Space"
-    );
+    [
+        ("Space Enter  Escape F35", "Space Enter Escape F35"),
+        ("Control+d Alt+x Shift+Tab", "Control+d Alt+x Shift+Tab"),
+        (
+            "Alt+Control+ArrowUp Control++",
+            "Control+Alt+ArrowUp Control++",
+        ),
+        ("Shift+a G < + Shift+Space", "A G < + Shift+Space"),
+    ]
+    .into_iter()
+    .for_each(|(text, wanted)| assert_eq!(written(&keys(text)), wanted));
 }
 
 #[test]

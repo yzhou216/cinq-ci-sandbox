@@ -81,12 +81,9 @@ impl Operation for Measure {
             return Outcome::None;
         };
         let margin = (MARGIN_ROWS * row.height).min(((height - row.height) / 2.0).max(0.0));
-        let Some(offset) = reveal(
-            row.y - origin - margin,
-            row.y + row.height - origin + margin,
-            scrolled,
-            height,
-        ) else {
+        let top = row.y - origin - margin;
+        let bottom = row.y + row.height - origin + margin;
+        let Some(offset) = reveal(top, bottom, scrolled, height) else {
             return Outcome::None;
         };
         let offset = AbsoluteOffset {

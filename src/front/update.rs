@@ -33,6 +33,7 @@ use std::{
 use iced::{
     Event, Subscription, Task, event, futures::channel::oneshot, keyboard, mouse, time, window,
 };
+use itertools::chain;
 
 use super::{App, Cinq, Message, keymap, view};
 use crate::back::{Audio, Command, Edit, TICK, parse_level};
@@ -71,14 +72,12 @@ impl Cinq {
     /// it keeps updates free of copies.
     pub(super) fn update(&mut self, message: Message) -> Task<Message> {
         let (app, task) = std::mem::take(&mut self.app).next(message);
-        let workspace = self.audio.sync(app.workspace);
-        let problem = self.keeper.keep(&app.show);
-        let app = App {
-            workspace,
-            file_problem: problem.or(app.file_problem),
+        let (app, load) = App {
+            workspace: self.audio.sync(app.workspace),
+            file_problem: self.keeper.keep(&app.show).or(app.file_problem),
             ..app
-        };
-        let (app, load) = app.load();
+        }
+        .load();
         self.app = app;
         Task::batch([task, load])
     }
@@ -116,13 +115,7 @@ impl App {
             Subscription::run_with(file.to_owned(), |file| keymap::config::watch(file.clone()))
                 .map(Message::Reconfigured)
         });
-        Subscription::batch(
-            always
-                .into_iter()
-                .chain(ticks)
-                .chain(rechecks)
-                .chain(reconfigured),
-        )
+        Subscription::batch(chain!(always, ticks, rechecks, reconfigured))
     }
 
     /// Returns the state without the last failure to open a link, along
@@ -230,11 +223,8 @@ impl App {
             }
             Message::SoundChosen(id, path) => {
                 let file = self.workspace.file_name_of(&path);
-                let edit = self
-                    .workspace
-                    .cue(id)
-                    .map(|cue| Command::Edit(id, cue.playing(file)));
-                self.send_all(edit)
+                let playing = self.workspace.cue(id).map(|cue| cue.playing(file));
+                self.send_all(playing.map(|edit| Command::Edit(id, edit)))
             }
             Message::ToggleHelp => Self {
                 help: !self.help,

@@ -27,7 +27,7 @@ use iced::{
     keyboard::{self, Key, key::Named},
 };
 
-use super::wrap::{Intercept, Wrap};
+use super::wrap::{Intercept, wrap};
 use crate::front::{
     Focus, Message,
     keymap::{Keymap, Press},
@@ -39,11 +39,7 @@ pub fn keep_keys<'a>(
     content: impl Into<Element<'a, Message>>,
     keymap: &'a Keymap,
 ) -> Element<'a, Message> {
-    Wrap {
-        content: content.into(),
-        intercept: Keep(keymap),
-    }
-    .into()
+    wrap(content, Keep(keymap))
 }
 
 /// Keeps the keys that a focused field let through
@@ -72,8 +68,7 @@ impl Intercept for Keep<'_> {
         let press = Press::from_key(modified_key, *modifiers);
         if shell.is_event_captured() {
             let typed = matches!(key, Key::Character(_) | Key::Named(Named::Space));
-            let at_once = press.filter(|&press| !typed && self.0.acts_at_once(press));
-            if let Some(press) = at_once {
+            if let Some(press) = press.filter(|&press| !typed && self.0.acts_at_once(press)) {
                 shell.publish(Message::Typed {
                     press,
                     repeat: *repeat,

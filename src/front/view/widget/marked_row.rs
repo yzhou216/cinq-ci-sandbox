@@ -22,7 +22,7 @@ use iced::{
     },
 };
 
-use super::wrap::{Intercept, Wrap};
+use super::wrap::{Intercept, wrap};
 use crate::front::{Message, view::theme};
 
 /// Returns `table`, which has `columns` columns, with the row at index
@@ -34,11 +34,7 @@ pub fn marked_row<'a>(
     row: Option<usize>,
     id: &'static str,
 ) -> Element<'a, Message> {
-    Wrap {
-        content: table.into(),
-        intercept: Mark { columns, row, id },
-    }
-    .into()
+    wrap(table, Mark { columns, row, id })
 }
 
 /// Background under one row of a table, and the identity of the row

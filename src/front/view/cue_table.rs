@@ -150,26 +150,23 @@ pub(super) fn view(app: &App) -> Element<'_, Message> {
 /// Draws the cue list `room` wide: a header, and under it the rows, which
 /// scroll in a table of their own that has no header, or a word on adding
 /// a cue while the list has none
-fn list(app: &App, room: f32) -> Element<'_, Message> {
+fn list<'a>(app: &'a App, room: f32) -> Element<'a, Message> {
     let fitting = fitting(app, room);
-    let columns = |titled: bool| {
-        fitting
+    let table = |titled: bool, cues: &'a [Cue]| {
+        let columns = fitting
             .iter()
-            .map(move |&(column, width)| table_column(app, column, width, titled))
+            .map(move |&(column, width)| table_column(app, column, width, titled));
+        table::table(columns, cues)
+            .padding_x(CELL_PADDING)
+            .separator_x(SEPARATOR)
     };
     let free = padding::right(SCROLL_BAR);
-    let header = table::table(columns(true), &[])
-        .padding_x(CELL_PADDING)
-        .padding_y(ROW_PADDING)
-        .separator_x(SEPARATOR);
+    let header = table(true, &[]).padding_y(ROW_PADDING);
     let cues = &app.current().cues;
     let rows = if cues.is_empty() {
         empty(app)
     } else {
-        let rows = table::table(columns(false), cues)
-            .padding_x(CELL_PADDING)
-            .padding_y(0)
-            .separator_x(SEPARATOR);
+        let rows = table(false, cues).padding_y(0);
         marked_row(rows, fitting.len(), app.selected_row(), SELECTED)
     };
     column![

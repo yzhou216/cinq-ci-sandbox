@@ -49,12 +49,11 @@ fn standby_goes_back_to_a_deleted_cue_unless_go_has_moved_it_since() {
 fn added_cue_goes_away_and_comes_back_with_its_identity() {
     let workspace = workspace(vec![audio(1)]);
     let id = workspace.next_cue_id().expect("identities remain").0;
-    let added = workspace.apply(add(0, Kind::Audio, Place::End));
-    assert_eq!(ids(&added.clone().apply(Command::Undo)), [1]);
-    assert_eq!(
-        ids(&added.apply(Command::Undo).apply(Command::Redo)),
-        [1, id]
-    );
+    let undone = workspace
+        .apply(add(0, Kind::Audio, Place::End))
+        .apply(Command::Undo);
+    assert_eq!(ids(&undone), [1]);
+    assert_eq!(ids(&undone.apply(Command::Redo)), [1, id]);
 }
 
 #[test]
@@ -89,10 +88,8 @@ fn undo_takes_back_the_name_that_a_chosen_sound_file_gave() {
         .apply(Command::Edit(CueId(1), chosen))
         .apply(Command::Undo);
     let cue = undone.cue(CueId(1)).unwrap();
-    assert_eq!(
-        (cue.file.as_str(), cue.name.as_str()),
-        ("sound.ogg", "Sound")
-    );
+    assert_eq!(cue.file, "sound.ogg");
+    assert_eq!(cue.name, "Sound");
 }
 
 #[test]

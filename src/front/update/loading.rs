@@ -26,12 +26,11 @@ impl App {
         if self.loading || loads.is_empty() {
             return (self, Task::none());
         }
-        let app = Self {
+        Self {
             loading: true,
             ..self
-        };
-        let show = app.show.id();
-        (app, read(loads, show, Message::Loaded))
+        }
+        .with_task(|app| read(loads, app.show.id(), Message::Loaded))
     }
 
     /// Records what loading the files of the show of identity `show` found,
@@ -50,12 +49,11 @@ impl App {
         if self.rechecking || loads.is_empty() {
             return (self, Task::none());
         }
-        let app = Self {
+        Self {
             rechecking: true,
             ..self
-        };
-        let show = app.show.id();
-        (app, read(loads, show, Message::Rechecked))
+        }
+        .with_task(|app| read(loads, app.show.id(), Message::Rechecked))
     }
 
     /// Records what reading again the files of the show of identity `show`

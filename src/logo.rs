@@ -226,10 +226,9 @@ fn at(circle: Circle, angle: f64) -> Point {
 /// Returns the arc of `circle` clockwise from the angle `from` to the angle
 /// `to`
 fn around(circle: Circle, from: f64, to: f64) -> Arc {
-    let radii = (circle.radius, circle.radius);
     Arc::new(
         circle.center,
-        radii,
+        (circle.radius, circle.radius),
         from.to_radians(),
         (to - from).to_radians(),
         0.0,

@@ -122,8 +122,7 @@ pub fn command_page(platform: Platform, date: &str) -> String {
     // man-pages(7) starts the summary in the NAME section in lower case
     let summary = command
         .get_about()
-        .map(ToString::to_string)
-        .unwrap_or_default();
+        .map_or_else(String::new, |about| uncapitalized(&about.to_string()));
     // Notice that --version prints after the version, with its link on a
     // line of its own, so that roff neither hyphenates the link nor spreads
     // out the words before it
@@ -131,7 +130,7 @@ pub fn command_page(platform: Platform, date: &str) -> String {
         .get_long_version()
         .and_then(|version| version.split_once('\n'))
         .map_or_else(String::new, |(_, notice)| notice.replace(" <", "\n<"));
-    let man = Man::new(command.about(uncapitalized(&summary)))
+    let man = Man::new(command.about(summary))
         .date(date)
         .manual("General Commands Manual");
     let rendered = |render: &Section| {

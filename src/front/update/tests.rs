@@ -21,9 +21,10 @@ use crate::{
     front::{App, Message, keymap::Press},
 };
 
-/// Returns a show of two lists of audio cues, numbered as they are
-/// identified: twelve in Main, and two from twenty in Preshow
-fn show() -> Workspace {
+/// Returns the state of the interface with `selected` selected in a show of
+/// two lists of audio cues, numbered as they are identified: twelve in
+/// Main, and two from twenty in Preshow
+fn show(selected: Option<CueId>) -> App {
     let cues = |ids: RangeInclusive<u32>| {
         ids.map(|id| {
             Cue::new(CueId(id), id.to_string(), Kind::Audio, "Sound")
@@ -32,10 +33,14 @@ fn show() -> Workspace {
         })
         .collect()
     };
-    Workspace::new(vec![
-        CueList::new("Main", cues(1..=12)),
-        CueList::new("Preshow", cues(20..=21)),
-    ])
+    App {
+        workspace: Workspace::new(vec![
+            CueList::new("Main", cues(1..=12)),
+            CueList::new("Preshow", cues(20..=21)),
+        ]),
+        selected,
+        ..App::default()
+    }
 }
 
 /// Presses a key with the default bindings while the help page is open,
@@ -62,10 +67,8 @@ fn help_page_closes_on_its_keys_and_on_go_and_panic() {
 fn keys_that_move_the_selection_scroll_the_open_help_page() {
     let typed = |keys: &[&str], help: bool| {
         let app = App {
-            workspace: show(),
-            selected: Some(CueId(2)),
             help,
-            ..App::default()
+            ..show(Some(CueId(2)))
         };
         let (after, task) = keys.iter().fold((app, Task::none()), |(app, _), &key| {
             let press = Press::from_key(&Key::Character(key.into()), Modifiers::empty())
@@ -88,10 +91,8 @@ fn keys_that_move_the_selection_scroll_the_open_help_page() {
 fn deleting_selects_the_cue_after_or_else_the_one_before() {
     let deleting = |list: usize, selected: u32, count: usize| {
         let app = App {
-            workspace: show(),
             list,
-            selected: Some(CueId(selected)),
-            ..App::default()
+            ..show(Some(CueId(selected)))
         };
         app.handled(Message::Delete(count)).0.selected
     };
@@ -102,12 +103,7 @@ fn deleting_selects_the_cue_after_or_else_the_one_before() {
 
 #[test]
 fn undoing_away_the_selected_cue_selects_the_cue_in_its_place() {
-    let app = App {
-        workspace: show(),
-        selected: Some(CueId(4)),
-        ..App::default()
-    };
-    let (added, _) = app.handled(Message::Add(Place::After));
+    let (added, _) = show(Some(CueId(4))).handled(Message::Add(Place::After));
     let (undone, _) = added.handled(Message::Undo);
     assert_eq!(undone.selected, Some(CueId(5)));
 }
@@ -131,11 +127,7 @@ fn sound_file_chosen_for_a_new_cue_names_it_by_its_path_from_the_show() {
 
 #[test]
 fn standby_selected_without_a_selected_cue_leaves_standby_alone() {
-    let app = App {
-        workspace: show(),
-        selected: None,
-        ..App::default()
-    };
+    let app = show(None);
     let standby = app.workspace.lists()[0].standby;
     let (after, _) = app.handled(Message::StandbySelected);
     assert_eq!(after.workspace.lists()[0].standby, standby);
@@ -144,25 +136,14 @@ fn standby_selected_without_a_selected_cue_leaves_standby_alone() {
 
 #[test]
 fn selection_on_standby_moves_on_with_it_and_stays_elsewhere() {
-    let going = |selected: u32| {
-        let app = App {
-            workspace: show(),
-            selected: Some(CueId(selected)),
-            ..App::default()
-        };
-        app.handled(Message::Go).0.selected
-    };
+    let going = |selected| show(Some(CueId(selected))).handled(Message::Go).0.selected;
     assert_eq!(going(1), Some(CueId(2)));
     assert_eq!(going(5), Some(CueId(5)));
 }
 
 #[test]
 fn level_typed_so_far_shows_until_the_operator_does_anything_else() {
-    let app = App {
-        workspace: show(),
-        selected: Some(CueId(1)),
-        ..App::default()
-    };
+    let app = show(Some(CueId(1)));
     let typed = |text: &str| Message::LevelTyped(CueId(1), text.to_owned());
     let (half, _) = app.next(typed("-"));
     assert_eq!(half.typed_level, Some((CueId(1), "-".to_owned())));
@@ -193,10 +174,7 @@ fn link_that_fails_to_open_shows_until_the_help_page_closes() {
 
 #[test]
 fn one_load_runs_at_a_time_until_what_it_found_comes_back() {
-    let app = App {
-        workspace: show(),
-        ..App::default()
-    };
+    let app = show(None);
     let found = load_files(Load::all(&app.workspace, app.workspace.unloaded()));
     let (loading, first) = app.load();
     let (still, again) = loading.load();

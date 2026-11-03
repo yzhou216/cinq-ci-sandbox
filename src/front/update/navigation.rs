@@ -19,16 +19,11 @@ impl App {
     pub(super) fn gone(self) -> Self {
         let following = self.selected.is_some() && self.selected == self.current().standby;
         let go = Command::Go { list: self.list };
-        let app = Self {
+        let app = self.send(go);
+        Self {
             help: false,
-            ..self.send(go)
-        };
-        match app.current().standby {
-            Some(standby) if following => Self {
-                selected: Some(standby),
-                ..app
-            },
-            _ => app,
+            selected: app.current().standby.filter(|_| following).or(app.selected),
+            ..app
         }
     }
 

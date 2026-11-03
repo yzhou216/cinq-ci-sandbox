@@ -62,20 +62,18 @@ impl Workspace {
             next_id: self.next_id + 1,
             ..self.with_list(list, |cues| cues.with_new_cue(id, number, kind, at))
         };
-        match workspace.place_of(id) {
-            Some(placed) => {
-                let standby = Standby {
-                    list,
-                    before,
-                    after: workspace.lists[list].standby,
-                };
-                workspace.recorded(Change::Added {
-                    placed: Box::new(placed),
-                    standby,
-                })
-            }
-            None => workspace,
-        }
+        let Some(placed) = workspace.place_of(id) else {
+            return workspace;
+        };
+        let standby = Standby {
+            list,
+            before,
+            after: workspace.lists[list].standby,
+        };
+        workspace.recorded(Change::Added {
+            placed: Box::new(placed),
+            standby,
+        })
     }
 
     /// Deletes cues as one change, with the places they had and where
@@ -96,7 +94,7 @@ impl Workspace {
             .dedup()
             .map(|list| (list, self.lists[list].standby))
             .collect();
-        let workspace = self.removed(ids);
+        let workspace = self.removed(ids.iter().copied());
         let standby = before
             .into_iter()
             .map(|(list, before)| Standby {
@@ -187,8 +185,8 @@ impl Workspace {
 
     /// Removes cues from their lists and stops those that are running,
     /// without recording a change, as undo and redo remove them
-    pub(super) fn removed(self, ids: &[CueId]) -> Self {
-        ids.iter().fold(self, |workspace, &id| {
+    pub(super) fn removed(self, ids: impl IntoIterator<Item = CueId>) -> Self {
+        ids.into_iter().fold(self, |workspace, id| {
             workspace
                 .with_list_of(id, |cues| cues.without(id))
                 .stopped(id)

@@ -13,18 +13,15 @@ use super::*;
 /// Returns a show in `/show` of a storm, an audio cue at -4 dB, and a fade
 /// cue that fades it out
 fn storm() -> Workspace {
-    Workspace::new(vec![CueList::new(
-        "Main",
-        vec![
-            Cue::new(CueId(1), "1", Kind::Audio, "Storm")
-                .file("storm.ogg")
-                .level(-4.0)
-                .build(),
-            Cue::new(CueId(2), "2", Kind::Fade, "Storm out")
-                .target(CueId(1))
-                .build(),
-        ],
-    )])
+    workspace(vec![
+        Cue::new(CueId(1), "1", Kind::Audio, "Storm")
+            .file("storm.ogg")
+            .level(-4.0)
+            .build(),
+        Cue::new(CueId(2), "2", Kind::Fade, "Storm out")
+            .target(CueId(1))
+            .build(),
+    ])
     .directory("/show")
 }
 
@@ -32,6 +29,11 @@ fn storm() -> Workspace {
 /// them
 fn shown(workspace: &Workspace) -> String {
     workspace.show(Some(Path::new("/show")))
+}
+
+/// Reads a show in `/show` whose file holds one list, Main, of `cues`
+fn read_list(cues: &str) -> Result<Workspace, String> {
+    Workspace::from_show(&format!("[[list]]\nname = \"Main\"\n{cues}"), "/show")
 }
 
 #[test]
@@ -95,11 +97,7 @@ fn show_file_reads_back_as_it_was_written() {
 
 #[test]
 fn settings_that_a_file_leaves_out_take_the_defaults_of_their_kind() {
-    let read = Workspace::from_show(
-        "[[list]]\nname = \"Main\"\n[[list.cue]]\nid = 7\nkind = \"fade\"\n",
-        "/show",
-    )
-    .expect("the show reads");
+    let read = read_list("[[list.cue]]\nid = 7\nkind = \"fade\"\n").expect("the show reads");
     let fade = read.cue(CueId(7)).expect("the fade is there");
     assert_eq!(fade.duration.value(), 5.0);
     assert_eq!(fade.level, SILENCE);
@@ -116,42 +114,30 @@ fn show_file_without_lists_holds_one_empty_list() {
 
 #[test]
 fn show_file_whose_cues_share_an_identity_cannot_be_read() {
-    let twice = "[[list]]\nname = \"Main\"\n[[list.cue]]\nid = 1\nkind = \"memo\"\n\
-                 [[list.cue]]\nid = 1\nkind = \"memo\"\n";
+    let twice = "[[list.cue]]\nid = 1\nkind = \"memo\"\n".repeat(2);
     assert_eq!(
-        Workspace::from_show(twice, "/show").err().as_deref(),
+        read_list(&twice).err().as_deref(),
         Some("more than one cue has the id 1")
     );
 }
 
 #[test]
 fn relative_sound_files_go_from_wherever_the_file_is() {
-    let workspace = Workspace::new(vec![CueList::new(
-        "Main",
-        vec![
-            Cue::new(CueId(1), "1", Kind::Audio, "Near")
-                .file("sounds/near.ogg")
-                .build(),
-            Cue::new(CueId(2), "2", Kind::Audio, "Far")
-                .file("/library/far.ogg")
-                .build(),
-        ],
-    )])
+    let workspace = workspace(vec![
+        Cue::new(CueId(1), "1", Kind::Audio, "Near")
+            .file("sounds/near.ogg")
+            .build(),
+        Cue::new(CueId(2), "2", Kind::Audio, "Far")
+            .file("/library/far.ogg")
+            .build(),
+    ])
     .directory("/show");
+    let names = |show: &str, file: &str| show.contains(&format!("file = \"{file}\""));
     let elsewhere = workspace.show(Some(Path::new("/elsewhere")));
-    assert!(
-        elsewhere.contains(r#"file = "../show/sounds/near.ogg""#),
-        "{elsewhere}"
-    );
-    assert!(
-        elsewhere.contains(r#"file = "/library/far.ogg""#),
-        "{elsewhere}"
-    );
+    assert!(names(&elsewhere, "../show/sounds/near.ogg"), "{elsewhere}");
+    assert!(names(&elsewhere, "/library/far.ogg"), "{elsewhere}");
     let nowhere = workspace.show(None);
-    assert!(
-        nowhere.contains(r#"file = "/show/sounds/near.ogg""#),
-        "{nowhere}"
-    );
+    assert!(names(&nowhere, "/show/sounds/near.ogg"), "{nowhere}");
 }
 
 #[test]
@@ -188,17 +174,14 @@ fn show_always_holds_a_list() {
 
 #[test]
 fn show_file_holds_where_an_audio_cue_starts_and_ends_and_whether_it_loops() {
-    let rain = Workspace::new(vec![CueList::new(
-        "Main",
-        vec![
-            Cue::new(CueId(1), "1", Kind::Audio, "Rain")
-                .file("rain.ogg")
-                .start(1.5)
-                .end(20.0)
-                .looping(true)
-                .build(),
-        ],
-    )])
+    let rain = workspace(vec![
+        Cue::new(CueId(1), "1", Kind::Audio, "Rain")
+            .file("rain.ogg")
+            .start(1.5)
+            .end(20.0)
+            .looping(true)
+            .build(),
+    ])
     .directory("/show");
     let text = shown(&rain);
     assert!(text.contains("file = \"rain.ogg\"\nstart = 1.5\nend = 20.0\nloop = true\n"));
@@ -211,23 +194,16 @@ fn show_file_holds_where_an_audio_cue_starts_and_ends_and_whether_it_loops() {
 
 #[test]
 fn show_file_with_a_level_that_no_cue_could_be_given_cannot_be_read() {
-    let file = |level: &str| {
-        format!(
-            "[[list]]\nname = \"Main\"\n[[list.cue]]\nid = 1\nkind = \"audio\"\nlevel = {level}\n"
-        )
-    };
-    assert!(Workspace::from_show(&file("60.0"), "/show").is_err());
-    assert!(Workspace::from_show(&file("nan"), "/show").is_err());
-    assert!(Workspace::from_show(&file("-6.0"), "/show").is_ok());
+    let cue = |level: &str| format!("[[list.cue]]\nid = 1\nkind = \"audio\"\nlevel = {level}\n");
+    assert!(read_list(&cue("60.0")).is_err());
+    assert!(read_list(&cue("nan")).is_err());
+    assert!(read_list(&cue("-6.0")).is_ok());
 }
 
 #[test]
 fn show_whose_identities_have_run_out_adds_no_cue() {
-    let full = Workspace::from_show(
-        "[[list]]\nname = \"Main\"\n[[list.cue]]\nid = 4294967295\nkind = \"memo\"\n",
-        "/show",
-    )
-    .expect("the show reads");
+    let full =
+        read_list("[[list.cue]]\nid = 4294967295\nkind = \"memo\"\n").expect("the show reads");
     assert_eq!(full.next_cue_id(), None);
     let added = full.apply(add(0, Kind::Memo, Place::End));
     assert_eq!(ids(&added), [u32::MAX]);

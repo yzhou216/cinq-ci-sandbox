@@ -167,10 +167,7 @@ fn editing_a_running_cue_leaves_the_run_under_way() {
     let workspace = workspace(vec![audio(1)])
         .apply(GO)
         .apply(Command::Tick(3.0))
-        .apply(Command::Edit(
-            CueId(1),
-            Edit::PreWait("10".to_owned().into()),
-        ));
+        .apply(Command::Edit(CueId(1), Edit::PreWait(10.0.into())));
     let active = workspace.active_of(CueId(1)).unwrap();
     assert_eq!(active.phase(), Phase::Running { remaining: 7.0 });
 }

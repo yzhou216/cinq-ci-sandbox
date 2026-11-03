@@ -8,7 +8,7 @@ use iced::{
     Element,
     widget::{row, text_input},
 };
-use strum::VariantArray;
+use strum::{IntoStaticStr, VariantArray};
 
 use crate::{
     back::{Advance, Cue, Edit, Kind},
@@ -18,15 +18,18 @@ use crate::{
     },
 };
 
-/// Inspector field, one per row of a form
-#[derive(Debug, Clone, Copy)]
+/// Inspector field, one per row of a form, which goes by its name, apart
+/// from the target of an audio cue, which is its file
+#[derive(Debug, Clone, Copy, IntoStaticStr)]
 pub(super) enum Field {
     Number,
     Name,
     Target,
     Notes,
+    #[strum(serialize = "Pre-wait")]
     PreWait,
     Duration,
+    #[strum(serialize = "Post-wait")]
     PostWait,
     Then,
     Start,
@@ -36,17 +39,8 @@ pub(super) enum Field {
 impl Field {
     pub(super) fn label(self, cue: &Cue) -> &'static str {
         match self {
-            Field::Number => "Number",
-            Field::Name => "Name",
             Field::Target if cue.kind == Kind::Audio => "File",
-            Field::Target => "Target",
-            Field::Notes => "Notes",
-            Field::PreWait => "Pre-wait",
-            Field::Duration => "Duration",
-            Field::PostWait => "Post-wait",
-            Field::Then => "Then",
-            Field::Start => "Start",
-            Field::End => "End",
+            _ => self.into(),
         }
     }
 

@@ -164,10 +164,10 @@ impl Active {
         !self.started && self.elapsed >= self.pre_wait
     }
 
-    /// Returns the cue with its action begun
+    /// Returns the cue with its action begun if it is due to begin
     pub(super) fn begun(self) -> Self {
         Self {
-            started: true,
+            started: self.started || self.due(),
             ..self
         }
     }

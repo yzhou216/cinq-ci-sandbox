@@ -31,7 +31,7 @@
 mod watch;
 
 use std::{
-    fs::{self, OpenOptions},
+    fs::{self, File},
     io::{self, Write},
     path::{self, Path, PathBuf},
     slice,
@@ -106,7 +106,7 @@ pub fn make(file: &Path) -> io::Result<()> {
     if let Some(directory) = file.parent() {
         fs::create_dir_all(directory)?;
     }
-    match OpenOptions::new().write(true).create_new(true).open(file) {
+    match File::create_new(file) {
         Ok(mut made) => made.write_all(MADE.as_bytes()),
         Err(error) if error.kind() == io::ErrorKind::AlreadyExists => Ok(()),
         Err(error) => Err(error),
@@ -167,13 +167,11 @@ pub(super) fn parse(text: &str) -> (Keymap, Vec<String>) {
         .keys()
         .filter(|name| name.parse::<Preset>().is_ok())
         .map(|name| format!("keymaps.{name} goes unused, since {name} is a shipped keymap"));
+    let default = Preset::default().name();
     let (name, unnamed) = match table.get("keymap") {
         Some(Value::String(name)) => (name.as_str(), None),
-        Some(_) => (
-            Preset::default().name(),
-            Some("keymap should be the name of a keymap"),
-        ),
-        None => (Preset::default().name(), None),
+        Some(_) => (default, Some("keymap should be the name of a keymap")),
+        None => (default, None),
     };
     let (chosen, built) =
         build(name, keymaps, &[]).unwrap_or_else(|problem| (Keymap::default(), vec![problem]));
@@ -182,14 +180,13 @@ pub(super) fn parse(text: &str) -> (Keymap, Vec<String>) {
         Some(_) => (chosen, vec!["keys should be a table".to_owned()]),
         None => (chosen, Vec::new()),
     };
-    let conflicts = keymap.conflicts();
     let problems = unknown
         .chain(malformed)
         .chain(shadowed)
         .chain(unnamed.map(str::to_owned))
         .chain(built)
         .chain(unbound)
-        .chain(conflicts)
+        .chain(keymap.conflicts())
         .collect();
     (keymap, problems)
 }
@@ -212,17 +209,14 @@ fn build(name: &str, keymaps: &Table, chain: &[&str]) -> Result<(Keymap, Vec<Str
         return Err(format!("keymap {name} starts from itself"));
     }
     let chain = [chain, &[name]].concat();
-    let (start, problems) = match entries.get("from") {
-        Some(Value::String(from)) => build(from, keymaps, &chain)
-            .unwrap_or_else(|problem| (Keymap::empty(name), vec![problem])),
-        Some(_) => (
-            Keymap::empty(name),
-            vec![format!(
-                "keymaps.{name}.from should be the name of a keymap"
-            )],
-        ),
-        None => (Keymap::empty(name), Vec::new()),
+    let start = match entries.get("from") {
+        Some(Value::String(from)) => build(from, keymaps, &chain),
+        Some(_) => Err(format!(
+            "keymaps.{name}.from should be the name of a keymap"
+        )),
+        None => Ok((Keymap::empty(name), Vec::new())),
     };
+    let (start, problems) = start.unwrap_or_else(|problem| (Keymap::empty(name), vec![problem]));
     let bindings = entries.iter().filter(|(key, _)| key.as_str() != "from");
     let (keymap, unbound) = bind(start.named(name), bindings, &format!("keymaps.{name}: "));
     Ok((keymap, [problems, unbound].concat()))

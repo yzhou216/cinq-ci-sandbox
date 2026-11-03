@@ -73,7 +73,6 @@
                 rustPlatform.cargoSetupHook
                 rustc
                 scdoc
-                zig
               ];
               buildInputs = [ pkgs.alsa-lib ];
 
@@ -98,8 +97,8 @@
               '';
             };
           # Package of portable cinq in the format of nfpm's `packager`, which
-          # depends on ALSA and on the libraries that cinq loads, apart from
-          # those of the GPU, without which it draws in software
+          # depends on glibc, ALSA, and the libraries that cinq loads, apart
+          # from those of the GPU, without which it draws in software
           nfpm =
             packager:
             pkgs.runCommand "${crate.name}-${packager}"
@@ -126,18 +125,21 @@
                   ];
                   overrides = {
                     deb.depends = [
+                      "libc6 (>= 2.31)"
                       "libasound2t64 | libasound2"
                       "libdbus-1-3"
                       "libwayland-client0"
                       "libxkbcommon0"
                     ];
                     rpm.depends = [
+                      "glibc >= 2.31"
                       "alsa-lib"
                       "dbus-libs"
                       "libwayland-client"
                       "libxkbcommon"
                     ];
                     archlinux.depends = [
+                      "glibc"
                       "alsa-lib"
                       "dbus"
                       "wayland"
@@ -242,7 +244,6 @@
               env = {
                 SDKROOT = "${pkgs.apple-sdk.src}";
                 CARGO_TARGET_AARCH64_APPLE_DARWIN_LINKER = "rust-lld";
-                CARGO_TARGET_AARCH64_APPLE_DARWIN_RUSTFLAGS = "-C linker-flavor=ld64.lld";
                 SOURCE_DATE_EPOCH = sourceDateEpoch;
               };
 

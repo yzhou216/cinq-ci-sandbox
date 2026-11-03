@@ -52,11 +52,12 @@ fn watched(file: PathBuf) -> mpsc::Receiver<Config> {
 #[test]
 fn keys_follow_the_file_as_it_comes_changes_and_goes() -> io::Result<()> {
     let home = TempDir::new()?;
-    let directory = home.path().join("cinq");
+    // Directories of the file, which come later as well
+    let directory = home.path().join("config").join("cinq");
     let file = directory.join("config.toml");
     let configs = watched(file.clone());
     until(&configs, defaults);
-    fs::create_dir(&directory)?;
+    fs::create_dir_all(&directory)?;
     fs::write(&file, "keymap = \"cua\"\n")?;
     until(&configs, from_file(Preset::Cua));
     // Saved as editors often save, by renaming another file over it
@@ -84,18 +85,5 @@ fn reading_the_file_does_not_make_the_watcher_read_it_again() -> io::Result<()> 
         .take(2)
         .count();
     assert!(again <= 1, "the watcher kept reading the file unasked");
-    Ok(())
-}
-
-#[test]
-fn keys_follow_a_file_whose_directories_come_later() -> io::Result<()> {
-    let home = TempDir::new()?;
-    let directory = home.path().join("config").join("cinq");
-    let file = directory.join("config.toml");
-    let configs = watched(file.clone());
-    until(&configs, defaults);
-    fs::create_dir_all(&directory)?;
-    fs::write(&file, "keymap = \"cua\"\n")?;
-    until(&configs, from_file(Preset::Cua));
     Ok(())
 }

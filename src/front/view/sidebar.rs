@@ -21,27 +21,22 @@ const BAR: f32 = 10.0;
 
 /// Returns the sidebar `width` wide
 pub(super) fn view(app: &App, width: f32) -> Element<'_, Message> {
-    let lists = app
-        .workspace
-        .lists()
-        .iter()
-        .enumerate()
-        .map(|(index, list)| {
-            // Count of cues in brackets, as the headings count running cues
-            // and warnings
-            radio(
-                format!("{} ({})", list.name, list.cues.len()),
-                index,
-                Some(app.list),
-                Message::SwitchList,
-            )
-            .into()
-        });
-    let active = app.workspace.active().iter().filter_map(|active| {
-        app.workspace
-            .cue(active.id)
-            .map(|cue| active_cue(active, cue))
+    let workspace = &app.workspace;
+    let lists = workspace.lists().iter().enumerate().map(|(index, list)| {
+        // Count of cues in brackets, as the headings count running cues and
+        // warnings
+        radio(
+            format!("{} ({})", list.name, list.cues.len()),
+            index,
+            Some(app.list),
+            Message::SwitchList,
+        )
+        .into()
     });
+    let active = workspace
+        .active()
+        .iter()
+        .filter_map(|active| workspace.cue(active.id).map(|cue| active_cue(active, cue)));
     let device = app.audio_error.as_deref().map(|error| {
         text(format!("No audio output: {error}"))
             .style(text::danger)
@@ -63,7 +58,7 @@ pub(super) fn view(app: &App, width: f32) -> Element<'_, Message> {
     } else {
         text::default
     });
-    let problems = app.workspace.problems().map(|(cue, problem)| {
+    let problems = workspace.problems().map(|(cue, problem)| {
         button(text(format!("{cue}: {problem}")))
             .on_press(Message::Select(cue.id))
             .width(Fill)
@@ -74,7 +69,7 @@ pub(super) fn view(app: &App, width: f32) -> Element<'_, Message> {
             text("Cue lists"),
             column(lists).spacing(SPACING),
             rule::horizontal(1),
-            text(format!("Active ({})", app.workspace.active().len())),
+            text(format!("Active ({})", workspace.active().len())),
             column(active).spacing(SPACING),
             rule::horizontal(1),
             warned,

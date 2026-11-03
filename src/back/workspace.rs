@@ -68,10 +68,9 @@ fn next_id(lists: &[CueList]) -> u64 {
     lists
         .iter()
         .flat_map(|list| &list.cues)
-        .map(|cue| u64::from(cue.id.0))
+        .map(|cue| u64::from(cue.id.0) + 1)
         .max()
-        .unwrap_or(0)
-        + 1
+        .unwrap_or(1)
 }
 
 /// Returns `lists`, or one empty list named Main in place of none, so that
@@ -89,12 +88,11 @@ impl Workspace {
     /// `lists`, or one empty list without any
     pub fn new(lists: Vec<CueList>) -> Self {
         let lists = listed(lists);
-        let next_id = next_id(&lists);
         Self {
+            next_id: next_id(&lists),
             lists,
             active: Vec::new(),
             show_mode: false,
-            next_id,
             next_run: 0,
             directory: PathBuf::new(),
             history: History::default(),

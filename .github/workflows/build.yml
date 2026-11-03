@@ -11,7 +11,7 @@ permissions:
 jobs:
   build:
     strategy:
-      fail-fast: false # A failure on one system leaves the other running
+      fail-fast: false # Failure on one system leaves the other running
       matrix:
         include:
           - os: ubuntu-latest

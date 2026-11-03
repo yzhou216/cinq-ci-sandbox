@@ -42,21 +42,15 @@ pub struct Keymap {
 
 impl From<Preset> for Keymap {
     fn from(preset: Preset) -> Self {
-        let bindings = Action::VARIANTS
+        Action::VARIANTS
             .iter()
-            .map(|&action| {
+            .fold(Self::empty(preset.name()), |keymap, &action| {
                 let keys = preset
                     .keys(action)
                     .iter()
-                    .filter_map(|keys| binding(keys).ok())
-                    .collect();
-                (action, keys)
+                    .filter_map(|keys| binding(keys).ok());
+                keymap.with(action, keys.collect())
             })
-            .collect();
-        Self {
-            name: preset.name().to_owned(),
-            bindings,
-        }
     }
 }
 
@@ -139,21 +133,14 @@ impl Keymap {
     /// very key bound are the binding of the key itself, or one that
     /// [`conflict`] describes.
     fn cut_short(&self, keys: &[Press]) -> Option<String> {
-        let &first = keys.first()?;
-        if self
-            .at_once_bound(first)
-            .is_some_and(|(_, key)| key == first)
-        {
-            return None;
-        }
-        keys.iter().find_map(|&press| {
-            let (action, key) = self.at_once_bound(press)?;
-            Some(format!(
+        let (action, key) = keys.iter().find_map(|&press| self.at_once_bound(press))?;
+        (keys[0] != key).then(|| {
+            format!(
                 "`{}` acts at once as {}, so `{}` can never be typed",
                 written(&[key]),
                 action.name(),
                 written(keys)
-            ))
+            )
         })
     }
 
@@ -192,16 +179,14 @@ fn conflict((earlier, keys): Binding, (later, other): Binding) -> Option<String>
             written(keys)
         ));
     }
-    let (short, long) = if keys.len() <= other.len() {
-        (keys, other)
-    } else {
-        (other, keys)
-    };
-    long.starts_with(short).then(|| {
-        format!(
-            "`{}` comes first, so `{}` can never be typed",
-            written(short),
-            written(long)
-        )
-    })
+    [(keys, other), (other, keys)]
+        .into_iter()
+        .find(|(short, long)| long.starts_with(short))
+        .map(|(short, long)| {
+            format!(
+                "`{}` comes first, so `{}` can never be typed",
+                written(short),
+                written(long)
+            )
+        })
 }

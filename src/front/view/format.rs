@@ -119,7 +119,7 @@ pub fn activity(active: &Active, cue: &Cue) -> String {
 /// count leaves out the cues that cannot play, which GO skips, and each of
 /// them says why.
 pub fn chain(workspace: &Workspace, list: &CueList, standby: &Cue) -> String {
-    let fired = workspace.next_go(list).count();
+    let fired = count(workspace.next_go(list).count(), "cue");
     let described = list
         .chain(standby.id)
         .enumerate()
@@ -135,11 +135,7 @@ pub fn chain(workspace: &Workspace, list: &CueList, standby: &Cue) -> String {
                 format!("{} ({notes})", number(cue))
             }
         });
-    format!(
-        "GO fires {}: {}",
-        count(fired, "cue"),
-        described.format(", ")
-    )
+    format!("GO fires {fired}: {}", described.format(", "))
 }
 
 /// Describes a change to the show in few words, starting in lower case, as

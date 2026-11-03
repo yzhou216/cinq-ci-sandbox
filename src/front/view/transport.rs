@@ -39,11 +39,9 @@ pub(super) fn view(app: &App) -> Element<'_, Message> {
             ]
         },
     );
-    let summary = column![
-        text(title).size(24).wrapping(Wrapping::None),
-        text(notes).wrapping(Wrapping::None),
-        text(chain).wrapping(Wrapping::None),
-    ];
+    let [title, notes, chain] =
+        [title, notes, chain].map(|line| text(line).wrapping(Wrapping::None));
+    let summary = column![title.size(24), notes, chain];
     let paused = app.workspace.active().iter().any(|active| active.paused);
     row![
         button(text("GO").size(40))

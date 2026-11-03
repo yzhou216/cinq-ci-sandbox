@@ -16,7 +16,7 @@
 mod tests;
 
 use iced::{
-    Center, Color, Element, Fill, never,
+    Center, Element, Fill,
     widget::{container, responsive, rich_text, row, span, text, text::Wrapping},
 };
 use itertools::Itertools;
@@ -52,16 +52,9 @@ pub(super) fn view(app: &App) -> Element<'_, Message> {
 fn bar(app: &App, width: f32) -> Element<'_, Message> {
     let status = status(app);
     let room = ((width - 3.0 * SPACING) / char_width()).floor() as usize;
-    let status_columns: usize = status.iter().map(|(part, _)| part.width()).sum();
+    let status_columns: usize = status.iter().map(|part| part.text.width()).sum();
     let shown = fitted(&hints(app), room.saturating_sub(status_columns));
-    let status = rich_text(
-        status
-            .into_iter()
-            .map(|(part, color)| span(part).color_maybe(color))
-            .collect_vec(),
-    )
-    .on_link_click(never)
-    .wrapping(Wrapping::None);
+    let status = rich_text(status).wrapping(Wrapping::None);
     row![
         container(status).width(Fill).clip(true),
         text(shown).wrapping(Wrapping::None)
@@ -92,7 +85,7 @@ fn fitted(hints: &[(Option<Action>, String)], room: usize) -> String {
 /// Returns the parts of the status, each with the color that makes it
 /// stand out, if it does: unsaved changes, show mode, which locks editing,
 /// and any warnings stand out
-fn status(app: &App) -> Vec<(String, Option<Color>)> {
+fn status(app: &App) -> Vec<text::Span<'_>> {
     let count = warnings(app);
     let mode = if app.editable() {
         "Edit mode"
@@ -100,18 +93,13 @@ fn status(app: &App) -> Vec<(String, Option<Color>)> {
         "Show mode"
     };
     vec![
-        (app.show.name().into_owned(), None),
-        (app.show.mark().to_owned(), Some(theme::PALETTE.warning)),
-        (LINE.to_owned(), None),
-        (
-            mode.to_owned(),
-            (!app.editable()).then_some(theme::PALETTE.primary),
-        ),
-        (LINE.to_owned(), None),
-        (
-            format::count(count, "warning"),
-            (count > 0).then_some(theme::PALETTE.warning),
-        ),
+        span(app.show.name()),
+        span(app.show.mark()).color(theme::PALETTE.warning),
+        span(LINE),
+        span(mode).color_maybe((!app.editable()).then_some(theme::PALETTE.primary)),
+        span(LINE),
+        span(format::count(count, "warning"))
+            .color_maybe((count > 0).then_some(theme::PALETTE.warning)),
     ]
 }
 

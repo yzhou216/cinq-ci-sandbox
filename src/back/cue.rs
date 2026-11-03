@@ -13,7 +13,7 @@ mod seconds;
 #[cfg(test)]
 mod tests;
 
-use std::{fmt, ops::RangeInclusive, path::Path};
+use std::{ffi::OsStr, fmt, ops::RangeInclusive, path::Path};
 
 use bon::Builder;
 
@@ -201,7 +201,5 @@ impl Cue {
 /// Returns the name of a sound file without its directory and its ending,
 /// or none when there is no such name
 fn stem(file: &str) -> Option<&str> {
-    Path::new(file.trim())
-        .file_stem()
-        .and_then(|stem| stem.to_str())
+    Path::new(file.trim()).file_stem().and_then(OsStr::to_str)
 }

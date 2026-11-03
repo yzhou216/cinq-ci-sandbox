@@ -24,13 +24,7 @@ impl App {
             kind: self.new_kind,
             at: self.selected_here().map_or(Place::End, place),
         };
-        let app = self.send(add);
-        Self {
-            selected: id
-                .filter(|&id| app.workspace.cue(id).is_some())
-                .or(app.selected),
-            ..app
-        }
+        self.send(add).showing(id, None)
     }
 
     /// Asks which sound file the audio cue `id` plays, in the desktop's

@@ -7,10 +7,10 @@
 //! The page links to the list of key values and to the configuration file,
 //! each of which opens in the program that the desktop opens it with, apart
 //! from the configuration file on Darwin, which opens in the default text
-//! editor.  The link makes a configuration file that is not
-//! there yet.  The page ends with the notice of the license of cinq.  The
-//! keys of the next and previous cue scroll it, and those of the first and
-//! last cue go to its top and its bottom.
+//! editor.  The link makes a configuration file that is not there yet.  The
+//! page ends with the notice of the license of cinq.  The keys of the next
+//! and previous cue scroll it, and those of the first and last cue go to its
+//! top and its bottom.
 
 use std::ffi::OsString;
 
@@ -66,30 +66,22 @@ pub(super) fn view(app: &App) -> Element<'_, Message> {
     // window without scrolling
     .padding_y(ROW_GAP);
     let key_values = paragraph(
-        [
-            span(
-                "The manual page cinq(5) describes config.toml, where keys go by their W3C UI Events key values, listed at ",
-            ),
-            link(KEY_VALUES, OsString::from(KEY_VALUES)),
-            span(", apart from the space bar, which is Space."),
-        ],
+        "The manual page cinq(5) describes config.toml, where keys go by their W3C UI Events key values, listed at ",
+        link(KEY_VALUES, OsString::from(KEY_VALUES)),
+        ", apart from the space bar, which is Space.",
         Message::OpenLink,
     );
     let source = match &app.config.source {
         Source::File(file) => paragraph(
-            [
-                span("These keys come from "),
-                link(file.display().to_string(), file.clone()),
-                span(", and change as it does."),
-            ],
+            "These keys come from ",
+            link(file.display().to_string(), file.clone()),
+            ", and change as it does.",
             Message::EditConfig,
         ),
         Source::Missing(file) => paragraph(
-            [
-                span("These are the default keys, which a file at "),
-                link(file.display().to_string(), file.clone()),
-                span(" can change.  Following the link makes it."),
-            ],
+            "These are the default keys, which a file at ",
+            link(file.display().to_string(), file.clone()),
+            " can change.  Following the link makes it.",
             Message::EditConfig,
         ),
         Source::NoDirectory => text("These are the default keys.").into(),
@@ -102,11 +94,9 @@ pub(super) fn view(app: &App) -> Element<'_, Message> {
         text(free).into(),
         text(warranty).into(),
         paragraph(
-            [
-                span(copy),
-                link(LICENSES, OsString::from(LICENSES)),
-                span("."),
-            ],
+            copy,
+            link(LICENSES, OsString::from(LICENSES)),
+            ".",
             Message::OpenLink,
         ),
     ];
@@ -130,13 +120,17 @@ pub(super) fn view(app: &App) -> Element<'_, Message> {
     opaque(mouse_area(center(opaque(page))).on_press(Message::CloseHelp))
 }
 
-/// Returns a paragraph of `spans`, whose links `open` turns into the
-/// message that opens what they name
+/// Returns a paragraph of `before`, `link`, and `after`, whose link `open`
+/// turns into the message that opens what it names
 fn paragraph<'a, Link: Clone + 'static>(
-    spans: impl AsRef<[Span<'a, Link>]> + 'a,
+    before: &'a str,
+    link: Span<'a, Link>,
+    after: &'a str,
     open: impl Fn(Link) -> Message + 'a,
 ) -> Element<'a, Message> {
-    rich_text(spans).on_link_click(open).into()
+    rich_text([span(before), link, span(after)])
+        .on_link_click(open)
+        .into()
 }
 
 /// Returns `label` as a link to `target`, in the color of links and

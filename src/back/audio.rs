@@ -26,12 +26,12 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use itertools::{Either, Itertools};
+use itertools::Itertools;
 use kira::{
     AudioManager, AudioManagerSettings, DefaultBackend,
     sound::{FromFileError, streaming::StreamingSoundData},
 };
-use rayon::iter::{IntoParallelIterator, ParallelIterator};
+use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 
 use super::{Active, Clip, Command, Cue, CueId, Media, Problem, Workspace};
 use preload::{Ask, Preloader, Wanted};
@@ -94,10 +94,8 @@ impl Audio {
             .active()
             .iter()
             .filter_map(|active| {
-                let clip = active.sound()?;
-                workspace
-                    .cue(active.id)
-                    .map(|cue| (cue.id, (cue, active, clip)))
+                let cue = workspace.cue(active.id)?;
+                Some((cue.id, (cue, active, active.sound()?)))
             })
             .collect();
         // Voices that play on, and those whose cue has stopped or which GO
@@ -112,7 +110,7 @@ impl Audio {
         ended.into_values().for_each(Voice::stop);
         let (voices, failures) = sounding
             .into_iter()
-            .partition_map(|(id, (cue, active, clip))| {
+            .map(|(id, (cue, active, clip))| {
                 // Voice that plays already, or else the sound made ready
                 // ahead if there is one, or else the file opened now
                 let voice = kept.remove(&id).map_or_else(
@@ -130,15 +128,15 @@ impl Audio {
                     },
                     Ok,
                 );
-                match voice {
-                    Ok(voice) => Either::Left((id, voice.followed(active))),
-                    Err(reason) => Either::Right(Command::Loaded {
+                voice
+                    .map(|voice| (id, voice.followed(active)))
+                    .map_err(|reason| Command::Loaded {
                         cue: id,
                         file: cue.file.clone(),
                         media: Media::Failed(reason),
-                    }),
-                }
-            });
+                    })
+            })
+            .partition_result();
         self.voices = voices;
         failures
     }
@@ -210,13 +208,8 @@ pub fn load_files(loads: Vec<Load>) -> Vec<Command> {
         .unique()
         .cloned()
         .collect();
-    let found: HashMap<PathBuf, Media> = paths
-        .into_par_iter()
-        .map(|path| {
-            let media = probe(&path);
-            (path, media)
-        })
-        .collect();
+    let found: HashMap<&PathBuf, Media> =
+        paths.par_iter().map(|path| (path, probe(path))).collect();
     loads
         .into_iter()
         .map(|load| Command::Loaded {

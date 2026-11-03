@@ -102,8 +102,7 @@ fn silent_file() -> (TempDir, Wanted) {
     let directory = TempDir::new().expect("a temporary directory can be made");
     let file = directory.path().join("silence.wav");
     fs::write(&file, silence()).expect("the file can be written");
-    let wanted = whole(&file);
-    (directory, wanted)
+    (directory, whole(&file))
 }
 
 /// Returns what `preloader` made for `cue`, once its thread has made it,
@@ -125,13 +124,8 @@ fn made(
 
 #[test]
 fn every_cue_that_names_a_missing_file_learns_that_it_is_not_found() {
-    let named = |id| {
-        Cue::new(CueId(id), id.to_string(), Kind::Audio, "Sound")
-            .file("gone.ogg")
-            .build()
-    };
     let workspace =
-        Workspace::new(vec![CueList::new("Main", vec![named(1), named(2)])]).directory("/nowhere");
+        Workspace::new(vec![CueList::new("Main", vec![audio(1), audio(2)])]).directory("/nowhere");
     let found = load_files(Load::all(&workspace, workspace.unloaded()));
     let not_found = |id| {
         found.iter().any(|command| {
@@ -162,10 +156,8 @@ fn sound_wanted_is_made_ready_on_a_thread_of_its_own() {
     let (_directory, wanted) = silent_file();
     let mut preloader = Preloader::new();
     preloader.want(vec![ask(&wanted)]);
-    assert!(matches!(
-        made(&mut preloader, CueId(1), &wanted),
-        Some(Ok(_))
-    ));
+    let made = made(&mut preloader, CueId(1), &wanted);
+    assert!(matches!(made, Some(Ok(_))));
 }
 
 #[test]

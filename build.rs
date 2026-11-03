@@ -14,8 +14,8 @@
 //! drawn as the icon of the desktop entry, goes in the hicolor icon theme,
 //! next to the desktop entry and the type of show files from `share`.
 //! Builds for Darwin also lay out the app bundle, all but the program, in
-//! the Applications directory beside it.  A relative directory goes from
-//! the root of the package.
+//! the Applications directory beside the one that `CINQ_SHARE_DIR` names.
+//! A relative `CINQ_SHARE_DIR` goes from the root of the package.
 
 // Modules of the program that the build compiles as well, which keep their
 // own modules where the program finds them
@@ -62,7 +62,7 @@ fn main() {
         return;
     };
     let share = Path::new(&share);
-    let darwin = env::var("CARGO_CFG_TARGET_OS").is_ok_and(|target| target == "macos");
+    let darwin = env::var("CARGO_CFG_TARGET_OS").expect("cargo names the target") == "macos";
     [
         ("render the manual pages", render(&share.join("man"))),
         ("write the shell completions", complete(share)),
@@ -133,7 +133,9 @@ fn draw(directory: &Path) -> io::Result<()> {
 /// `share`: Info.plist, the icon, and the empty directory for the program,
 /// which the build script runs too early to fill
 fn assemble(share: &Path) -> io::Result<()> {
-    let contents = share.with_file_name("Applications/cinq.app/Contents");
+    let contents = share
+        .with_file_name("Applications")
+        .join("cinq.app/Contents");
     fs::create_dir_all(contents.join("MacOS"))?;
     write(&contents.join("Info.plist"), bundle::info_plist())?;
     write(&contents.join("Resources/cinq.icns"), bundle::icns()?)
@@ -174,12 +176,9 @@ fn date() -> String {
 /// the output directory of the build, and the page is written only once
 /// scdoc has rendered all of it, so that a failure leaves no page behind.
 fn scdoc(source: &str, page: &Path) -> io::Result<()> {
-    let name = page
-        .file_name()
-        .expect("a page is a file")
-        .to_string_lossy();
     let input = Path::new(&env::var_os("OUT_DIR").expect("cargo names the output directory"))
-        .join(format!("{name}.scd"));
+        .join(page.file_name().expect("a page is a file"))
+        .with_added_extension("scd");
     fs::write(&input, source)?;
     let output = Command::new("scdoc")
         .stdin(File::open(&input)?)

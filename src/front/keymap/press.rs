@@ -100,13 +100,8 @@ impl Press {
     /// Returns the value of a digit pressed alone, which counts the keys
     /// after it
     pub(super) fn digit(self) -> Option<usize> {
-        match self {
-            Self {
-                key: Name::Char(c),
-                ctrl: false,
-                alt: false,
-                ..
-            } => c.to_digit(10).map(|digit| digit as usize),
+        match self.key {
+            Name::Char(c) if !self.ctrl && !self.alt => c.to_digit(10).map(|digit| digit as usize),
             _ => None,
         }
     }

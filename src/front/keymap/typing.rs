@@ -29,13 +29,13 @@ impl Keymap {
     /// key that breaks off a command starts a new one, so that a stray key
     /// never swallows the next.
     pub fn parse(&self, pending: &[Press], press: Press) -> Outcome {
-        if let Some(action) = self.at_once(press) {
+        if let Some((action, _)) = self.at_once_bound(press) {
             return Outcome {
                 pending: Vec::new(),
                 action: Some((action, None)),
             };
         }
-        let keys: Vec<Press> = pending.iter().copied().chain([press]).collect();
+        let keys = [pending, &[press]].concat();
         let (digits, command) = split_count(&keys);
         let count = digits
             .iter()
@@ -91,16 +91,12 @@ impl Keymap {
     /// keys typed before it: one of [`Action::AT_ONCE`], whatever the
     /// modifiers held, or the action bound to the key alone
     pub fn alone(&self, press: Press) -> Option<Action> {
-        self.at_once(press).or_else(|| match self.find(&[press]) {
-            Found::Action(action) => Some(action),
-            Found::Prefix | Found::Nothing => None,
-        })
-    }
-
-    /// Returns the action of [`Action::AT_ONCE`] whose key is pressed, with
-    /// or without modifiers
-    fn at_once(&self, press: Press) -> Option<Action> {
-        self.at_once_bound(press).map(|(action, _)| action)
+        self.at_once_bound(press)
+            .map(|(action, _)| action)
+            .or_else(|| match self.find(&[press]) {
+                Found::Action(action) => Some(action),
+                Found::Prefix | Found::Nothing => None,
+            })
     }
 
     /// Returns the action of [`Action::AT_ONCE`] whose key is pressed,

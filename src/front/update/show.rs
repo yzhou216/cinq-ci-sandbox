@@ -191,14 +191,11 @@ impl App {
     pub(super) fn save_to(&self, file: PathBuf) -> Task<Message> {
         let show = self.show.id;
         let text = self.workspace.show(file.parent());
-        on_own_thread(move || {
-            let result = write(&file, &text, true).map_err(|error| error.to_string());
-            Saved {
-                show,
-                file,
-                text,
-                result,
-            }
+        on_own_thread(move || Saved {
+            result: write(&file, &text, true).map_err(|error| error.to_string()),
+            show,
+            file,
+            text,
         })
         .map(Message::Saved)
     }
@@ -256,8 +253,7 @@ impl App {
                 };
             }
         };
-        let base = read.file.as_deref().and_then(Path::parent);
-        let saved = workspace.show(base);
+        let saved = workspace.show(read.file.as_deref().and_then(Path::parent));
         let again = read.file == self.show.file;
         let kept = if self.show.unsaved() && again {
             Ok(Some(self.show.text.clone()))
@@ -277,12 +273,11 @@ impl App {
             workspace,
             show: Show {
                 id: self.show.id + 1,
-                file: read.file.clone(),
+                file: read.file,
                 saved: saved.clone(),
                 text: saved,
                 version: self.show.version + 1,
             },
-            list: 0,
             file_problem: None,
             ..self
         };
@@ -291,7 +286,7 @@ impl App {
                 .transpose()
         });
         let opened = match kept {
-            Ok(Some(kept)) if kept.show(base) != opened.show.saved => {
+            Ok(Some(kept)) if kept.show(opened.show.directory()) != opened.show.saved => {
                 opened.send(Command::Restore(kept.lists().to_vec()))
             }
             Ok(_) => opened,
@@ -483,18 +478,15 @@ impl Change {
     /// show by its kept file, which goes by the name of the show's file.  A
     /// write does not wait for the disk, since a kept file only has to
     /// outlast a crash of the program.
-    fn made(self) -> Result<(), String> {
-        let name = self
-            .file()
-            .file_name()
-            .unwrap_or_default()
-            .display()
-            .to_string();
+    fn made(&self) -> Result<(), String> {
         match self {
-            Change::Write(file, text) => write(&file, &text, false),
-            Change::Remove(file) => remove(&file),
+            Change::Write(file, text) => write(file, text, false),
+            Change::Remove(file) => remove(file),
         }
-        .map_err(|error| format!("Cannot keep the unsaved changes to {name}: {error}"))
+        .map_err(|error| {
+            let name = self.file().file_name().unwrap_or_default().display();
+            format!("Cannot keep the unsaved changes to {name}: {error}")
+        })
     }
 }
 
@@ -502,13 +494,10 @@ impl Change {
 /// fail do.  Each turn takes every job that waits, and makes only the
 /// newest change to each file, in the order of those changes.
 fn work(jobs: &mpsc::Receiver<Job>, failed: &mpsc::Sender<String>) {
-    iter::from_fn(|| {
-        let first = jobs.recv().ok()?;
-        Some(iter::once(first).chain(jobs.try_iter()).collect::<Vec<_>>())
-    })
-    .for_each(|waiting| {
-        let (changes, settles): (Vec<Change>, Vec<mpsc::Sender<()>>) =
-            waiting.into_iter().partition_map(|job| match job {
+    jobs.iter().for_each(|first| {
+        let (changes, settles): (Vec<Change>, Vec<mpsc::Sender<()>>) = iter::once(first)
+            .chain(jobs.try_iter())
+            .partition_map(|job| match job {
                 Job::Change(change) => Either::Left(change),
                 Job::Settle(done) => Either::Right(done),
             });

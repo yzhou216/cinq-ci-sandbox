@@ -27,17 +27,16 @@ fn command_line_is_well_formed() {
 
 #[test]
 fn completions_of_every_shell_offer_the_options() {
-    let scripts = [
+    let lacking: Vec<&str> = [
         ("bash", script(Shell::Bash)),
         ("zsh", script(Shell::Zsh)),
         ("fish", script(Shell::Fish)),
         ("Nushell", script(Nushell)),
-    ];
-    let lacking: Vec<&str> = scripts
-        .iter()
-        .filter(|(_, script)| !script.contains("config-dir"))
-        .map(|&(shell, _)| shell)
-        .collect();
+    ]
+    .into_iter()
+    .filter(|(_, script)| !script.contains("config-dir"))
+    .map(|(shell, _)| shell)
+    .collect();
     assert!(lacking.is_empty(), "{lacking:?} offer no --config-dir");
 }
 
@@ -97,7 +96,9 @@ fn build_for_darwin_lays_out_the_app_bundle_beside_the_share_directory() {
     let Some(share) = option_env!("CINQ_SHARE_DIR").filter(|_| cfg!(target_os = "macos")) else {
         return;
     };
-    let contents = Path::new(share).with_file_name("Applications/cinq.app/Contents");
+    let contents = Path::new(share)
+        .with_file_name("Applications")
+        .join("cinq.app/Contents");
     let missing: Vec<&str> = ["Info.plist", "MacOS", "Resources/cinq.icns"]
         .into_iter()
         .filter(|path| !contents.join(path).exists())

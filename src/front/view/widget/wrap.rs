@@ -56,15 +56,20 @@ pub trait Intercept {
 }
 
 /// Content with an [`Intercept`] around its events
-pub struct Wrap<'a, I> {
-    pub content: Element<'a, Message>,
-    pub intercept: I,
+struct Wrap<'a, I> {
+    content: Element<'a, Message>,
+    intercept: I,
 }
 
-impl<'a, I: Intercept + 'a> From<Wrap<'a, I>> for Element<'a, Message> {
-    fn from(wrap: Wrap<'a, I>) -> Self {
-        Element::new(wrap)
-    }
+/// Returns `content` with `intercept` around its events
+pub fn wrap<'a>(
+    content: impl Into<Element<'a, Message>>,
+    intercept: impl Intercept + 'a,
+) -> Element<'a, Message> {
+    Element::new(Wrap {
+        content: content.into(),
+        intercept,
+    })
 }
 
 impl<I: Intercept> Widget<Message, Theme, Renderer> for Wrap<'_, I> {

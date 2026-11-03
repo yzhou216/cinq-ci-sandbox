@@ -6,25 +6,19 @@
 //! again without recording them as new changes
 
 use super::{Change, Placed, Standby, Turn};
-use crate::back::{CueId, workspace::Workspace};
+use crate::back::workspace::Workspace;
 
 impl Workspace {
     /// Returns the change that undo takes back next.  Show mode, which
     /// locks the cues, leaves only moves of standby to undo.
     pub fn undoable(&self) -> Option<&Change> {
-        self.history
-            .undo
-            .last()
-            .filter(|change| self.allows(change))
+        self.history.undo.last().filter(|last| self.allows(last))
     }
 
     /// Returns the change that redo makes again next, which show mode
     /// limits as it does undo
     pub fn redoable(&self) -> Option<&Change> {
-        self.history
-            .redo
-            .last()
-            .filter(|change| self.allows(change))
+        self.history.redo.last().filter(|last| self.allows(last))
     }
 
     /// Returns the way the latest change to the show went, with the change
@@ -82,7 +76,7 @@ impl Workspace {
         match change {
             Change::Added { placed, standby } => self
                 .with_standby_moved(standby.reversed())
-                .removed(&[placed.cue.id]),
+                .removed([placed.cue.id]),
             Change::Deleted { cues, standby } => {
                 let restored = cues.into_iter().fold(self, Self::with_placed);
                 standby
@@ -102,10 +96,7 @@ impl Workspace {
             Change::Added { placed, standby } => {
                 self.with_placed(*placed).with_standby_moved(standby)
             }
-            Change::Deleted { cues, .. } => {
-                let ids: Vec<CueId> = cues.iter().map(|placed| placed.cue.id).collect();
-                self.removed(&ids)
-            }
+            Change::Deleted { cues, .. } => self.removed(cues.iter().map(|placed| placed.cue.id)),
             Change::Moved { cue, to, .. } => self.with_cue_moved(cue, to),
             Change::Edited { cue, redo, .. } => self.changed(cue, redo),
             Change::Standby(standby) => self.with_standby_moved(standby),

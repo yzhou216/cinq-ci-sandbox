@@ -21,11 +21,10 @@ pub struct CueList {
 impl CueList {
     /// Creates a list with standby on its first cue
     pub fn new(name: impl Into<String>, cues: Vec<Cue>) -> Self {
-        let standby = cues.first().map(|cue| cue.id);
         Self {
             name: name.into(),
+            standby: cues.first().map(|cue| cue.id),
             cues,
-            standby,
         }
     }
 
@@ -60,10 +59,9 @@ impl CueList {
     /// Inserts a new cue of `kind` with an identity and a number at a place
     /// in the list, named as new cues of its kind are.  As in QLab, a new
     /// fade or stop cue targets the cue it follows when it can act on that
-    /// cue.  A cue that goes at the end of a list whose
-    /// standby waits past the end goes on standby, so that GO fires the
-    /// first cue of a new list, and the cue added to a list played to its
-    /// end.
+    /// cue.  A cue that goes at the end of a list whose standby waits past
+    /// the end goes on standby, so that GO fires the first cue of a new
+    /// list, and the cue added to a list played to its end.
     pub(in crate::back) fn with_new_cue(
         self,
         id: CueId,
@@ -83,13 +81,9 @@ impl CueList {
             .and_then(|before| self.cues.get(before))
             .filter(|before| cue.can_target(before))
             .map(|before| before.id);
-        let standby = match self.standby {
-            None if index == self.cues.len() => Some(id),
-            standby => standby,
-        };
         Self {
+            standby: self.standby.or((index == self.cues.len()).then_some(id)),
             cues: inserted(self.cues, index, Cue { target, ..cue }),
-            standby,
             ..self
         }
     }
@@ -103,9 +97,8 @@ impl CueList {
         } else {
             self.standby
         };
-        let cues = self.cues.into_iter().filter(|cue| cue.id != id).collect();
         Self {
-            cues,
+            cues: self.cues.into_iter().filter(|cue| cue.id != id).collect(),
             standby,
             ..self
         }

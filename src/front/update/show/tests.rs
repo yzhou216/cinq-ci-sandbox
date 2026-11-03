@@ -18,6 +18,9 @@ const SHOW: &str = "[[list]]\nname = \"Main\"\n\n[[list.cue]]\nid = 1\nnumber = 
 /// File of the storm show, in `/shows`
 const STORM: &str = "/shows/storm.cinq.toml";
 
+/// File of the calm show, in `/shows`
+const CALM: &str = "/shows/calm.cinq.toml";
+
 /// Returns what reading the show in `file` found: `text` in its file, and
 /// `kept` among the unsaved changes
 fn found(file: Option<&str>, text: Option<&str>, kept: Option<&str>) -> Read {
@@ -37,6 +40,17 @@ fn storm() -> App {
 /// Renames the memo cue of the storm show
 fn renamed(app: App, name: &str) -> App {
     app.send(Command::Edit(CueId(1), Edit::Name(name.to_owned())))
+}
+
+/// Returns what saving the show of `app` in `file` finds when it succeeds
+fn saving(app: &App, file: &str) -> Saved {
+    let file = PathBuf::from(file);
+    Saved {
+        show: app.show.id,
+        text: app.workspace.show(file.parent()),
+        file,
+        result: Ok(()),
+    }
 }
 
 /// Returns a keeper of unsaved changes in a new temporary directory, along
@@ -104,21 +118,16 @@ fn file_that_is_not_a_show_leaves_the_show_on_screen() {
 #[test]
 fn opening_another_show_tells_where_the_unsaved_changes_went() {
     let told = "Kept the unsaved changes to storm.cinq.toml | Control+o: open";
-    let app =
-        renamed(storm(), "Cue").opened(found(Some("/shows/calm.cinq.toml"), Some(SHOW), None));
+    let app = renamed(storm(), "Cue").opened(found(Some(CALM), Some(SHOW), None));
     assert_eq!(app.told.as_deref(), Some(told));
     // Also when the show opened brings back unsaved changes of its own
     let kept = SHOW.replace("Note", "Calm");
-    let app = renamed(storm(), "Cue").opened(found(
-        Some("/shows/calm.cinq.toml"),
-        Some(SHOW),
-        Some(&kept),
-    ));
+    let app = renamed(storm(), "Cue").opened(found(Some(CALM), Some(SHOW), Some(&kept)));
     assert_eq!(app.told.as_deref(), Some(told));
     // Without the key for a new show, whose changes only starting cinq
     // without a show brings back
     let untitled = App::default().opened(found(None, None, Some(SHOW)));
-    let app = untitled.opened(found(Some("/shows/calm.cinq.toml"), Some(SHOW), None));
+    let app = untitled.opened(found(Some(CALM), Some(SHOW), None));
     assert_eq!(
         app.told.as_deref(),
         Some("Kept the unsaved changes to untitled")
@@ -134,33 +143,23 @@ fn saving_leaves_unsaved_only_the_changes_made_since() {
             kind: Kind::Memo,
             at: Place::End,
         });
-    let file = PathBuf::from("/shows/new.cinq.toml");
-    let show = new.show.id;
-    let saved = |text: String| Saved {
-        show,
-        file: file.clone(),
-        text,
-        result: Ok(()),
-    };
-    let text = new.workspace.show(file.parent());
-    let later = renamed(new, "Later");
-    let after = later.saved(saved(text));
+    let file = "/shows/new.cinq.toml";
+    let save = saving(&new, file);
+    let after = renamed(new, "Later").saved(save);
     assert_eq!(after.show.name(), "new.cinq.toml");
     assert!(after.show.unsaved());
-    let text = after.workspace.show(file.parent());
-    assert!(!after.saved(saved(text)).show.unsaved());
+    let again = saving(&after, file);
+    assert!(!after.saved(again).show.unsaved());
 }
 
 #[test]
 fn failed_saving_leaves_the_changes_unsaved() {
     let changed = renamed(storm(), "Cue");
-    let show = changed.show.id;
-    let app = changed.saved(Saved {
-        show,
-        file: PathBuf::from(STORM),
-        text: String::new(),
+    let failed = Saved {
         result: Err("disk full".to_owned()),
-    });
+        ..saving(&changed, STORM)
+    };
+    let app = changed.saved(failed);
     assert!(app.show.unsaved());
     assert_eq!(
         app.file_problem.as_deref(),
@@ -194,7 +193,7 @@ fn keeper_leaves_the_kept_changes_of_a_show_that_another_takes_the_place_of() {
     let kept = kept_file(directory.path(), Some(Path::new(STORM)));
     let changed = renamed(storm(), "Cue");
     keeper.keep(&changed.show);
-    let other = changed.opened(found(Some("/shows/calm.cinq.toml"), Some(SHOW), None));
+    let other = changed.opened(found(Some(CALM), Some(SHOW), None));
     assert_eq!(keeper.keep(&other.show), None);
     keeper.writer.settled();
     assert!(kept.exists());
@@ -204,21 +203,15 @@ fn keeper_leaves_the_kept_changes_of_a_show_that_another_takes_the_place_of() {
 fn kept_changes_move_along_with_their_show() {
     let (mut keeper, directory) = keeper();
     let kept = kept_file(directory.path(), Some(Path::new(STORM)));
-    let moved = PathBuf::from("/elsewhere/storm.cinq.toml");
+    let moved = "/elsewhere/storm.cinq.toml";
     let changed = renamed(storm(), "Cue");
     keeper.keep(&changed.show);
-    let text = changed.workspace.show(moved.parent());
-    let show = changed.show.id;
-    let saved = renamed(changed, "Later").saved(Saved {
-        show,
-        file: moved.clone(),
-        text,
-        result: Ok(()),
-    });
+    let save = saving(&changed, moved);
+    let saved = renamed(changed, "Later").saved(save);
     assert_eq!(keeper.keep(&saved.show), None);
     keeper.writer.settled();
     assert!(!kept.exists());
-    assert!(kept_file(directory.path(), Some(&moved)).exists());
+    assert!(kept_file(directory.path(), Some(Path::new(moved))).exists());
 }
 
 #[test]
@@ -230,16 +223,10 @@ fn show_named_through_a_parent_directory_keeps_its_changes_as_by_its_plain_path(
 #[test]
 fn save_that_ends_after_another_show_opens_leaves_that_show_alone() {
     let changed = renamed(storm(), "Cue");
-    let show = changed.show.id;
-    let text = changed.workspace.show(Path::new(STORM).parent());
-    let calm = changed.opened(found(Some("/shows/calm.cinq.toml"), Some(SHOW), None));
+    let save = saving(&changed, STORM);
+    let calm = changed.opened(found(Some(CALM), Some(SHOW), None));
     let saved = calm.show.saved.clone();
-    let after = calm.saved(Saved {
-        show,
-        file: PathBuf::from(STORM),
-        text,
-        result: Ok(()),
-    });
+    let after = calm.saved(save);
     assert_eq!(after.show.name(), "calm.cinq.toml");
     assert_eq!(after.show.saved, saved);
     assert!(!after.show.unsaved());
