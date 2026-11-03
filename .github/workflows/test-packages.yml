@@ -3,7 +3,8 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 # Installs the deb, rpm, and Arch packages on the distributions they are for,
-# runs cinq from each, and opens its window under a headless Weston
+# runs cinq from each, removes it again, and opens its window under a headless
+# Weston
 on:
   push:
   workflow_dispatch:
@@ -28,26 +29,35 @@ jobs:
             cinq-*.pkg.tar.zst
   install:
     needs: build
+    timeout-minutes: 15
     strategy:
       fail-fast: false
       matrix:
         include:
           - image: debian:12
             install: apt-get update && apt-get install -y ./cinq_*.deb
+            remove: apt-get remove -y cinq
           - image: debian:13
             install: apt-get update && apt-get install -y ./cinq_*.deb
+            remove: apt-get remove -y cinq
           - image: debian:unstable
             install: apt-get update && apt-get install -y ./cinq_*.deb
-          - image: ubuntu:22.04
-            install: apt-get update && apt-get install -y ./cinq_*.deb
+            remove: apt-get remove -y cinq
+          - image: ubuntu:22.04 # Minimal image, which leaves out manual pages
+            install: rm /etc/dpkg/dpkg.cfg.d/excludes && apt-get update && apt-get install -y ./cinq_*.deb
+            remove: apt-get remove -y cinq
           - image: ubuntu:24.04
-            install: apt-get update && apt-get install -y ./cinq_*.deb
+            install: rm /etc/dpkg/dpkg.cfg.d/excludes && apt-get update && apt-get install -y ./cinq_*.deb
+            remove: apt-get remove -y cinq
           - image: fedora:latest
             install: dnf install -y ./cinq-*.rpm
+            remove: dnf remove -y cinq
           - image: almalinux:9
             install: dnf install -y ./cinq-*.rpm
-          - image: archlinux:latest
-            install: pacman -Sy --noconfirm && pacman -U --noconfirm ./cinq-*.pkg.tar.zst
+            remove: dnf remove -y cinq
+          - image: archlinux:latest # Leaves out manual pages too
+            install: sed -i '/^NoExtract/d' /etc/pacman.conf && pacman -Sy --noconfirm && pacman -U --noconfirm ./cinq-*.pkg.tar.zst
+            remove: pacman -R --noconfirm cinq
     runs-on: ubuntu-latest
     container: ${{ matrix.image }}
     steps:
@@ -58,12 +68,18 @@ jobs:
       - run: |
           echo "glibc $(getconf GNU_LIBC_VERSION)"
           cinq --version
-          for file in man/man1/cinq.1 man/man5/cinq.5 man/man5/cinq-show.5 applications/cinq.desktop \
-            mime/packages/cinq.xml icons/hicolor/scalable/apps/cinq.svg bash-completion/completions/cinq; do
+          files="man/man1/cinq.1 man/man5/cinq.5 man/man5/cinq-show.5 applications/cinq.desktop
+            mime/packages/cinq.xml icons/hicolor/scalable/apps/cinq.svg bash-completion/completions/cinq"
+          for file in $files; do
             test -f "/usr/share/$file" || { echo "missing /usr/share/$file"; exit 1; }
+          done
+          ${{ matrix.remove }}
+          for file in bin/cinq $(printf 'share/%s ' $files); do
+            test ! -e "/usr/$file" || { echo "left behind /usr/$file"; exit 1; }
           done
   window:
     needs: build
+    timeout-minutes: 15
     strategy:
       fail-fast: false
       matrix:
@@ -83,13 +99,15 @@ jobs:
       - run: ${{ matrix.install }}
       - run: |
           export XDG_RUNTIME_DIR=$(mktemp -d)
+          weston --version
           weston --backend=headless --socket=cinq --debug > weston.log 2>&1 &
           sleep 5
-          WAYLAND_DISPLAY=cinq timeout 20 cinq > cinq.log 2>&1 &
+          WAYLAND_DISPLAY=cinq timeout -k 5 20 cinq > cinq.log 2>&1 &
+          cinq=$!
           sleep 12
-          WAYLAND_DISPLAY=cinq weston-screenshooter || echo "no screenshot"
+          WAYLAND_DISPLAY=cinq timeout -k 5 10 weston-screenshooter || echo "no screenshot"
           status=0
-          wait $! || status=$?
+          wait $cinq || status=$?
           echo "--- cinq"; cat cinq.log
           echo "--- weston"; tail -20 weston.log
           test "$status" = 124 # Still running when timeout ended it

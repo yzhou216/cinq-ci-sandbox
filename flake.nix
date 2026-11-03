@@ -35,7 +35,10 @@
         }:
         let
           inherit (pkgs.stdenvNoCC.hostPlatform) isDarwin isFreeBSD isLinux;
-          cargo = (lib.importTOML ./Cargo.toml).package;
+          crate = (lib.importTOML ./Cargo.toml).package;
+          # Date of the latest commit, which the manual pages give rather
+          # than the fixed date that builds take otherwise
+          sourceDateEpoch = toString inputs.self.lastModified;
           # Rustfmt with the unstable settings of rustfmt.toml turned on
           rustfmt = pkgs.rustfmt.override { asNightly = true; };
           # Rust's own toolchain of the release that Nixpkgs builds rustc
@@ -59,28 +62,26 @@
               target = pkgs.stdenv.hostPlatform.rust.rustcTarget;
             in
             pkgs.stdenv.mkDerivation {
-              pname = "${cargo.name}-portable";
-              inherit (cargo) version;
+              pname = "${crate.name}-portable";
+              inherit (crate) version;
               inherit (config.packages.cinq) src cargoDeps;
 
-              nativeBuildInputs = [
-                pkgs.cargo
-              ]
-              ++ (with pkgs; [
+              nativeBuildInputs = with pkgs; [
+                cargo
                 cargo-zigbuild
                 pkg-config
                 rustPlatform.cargoSetupHook
                 rustc
                 scdoc
                 zig
-              ]);
+              ];
               buildInputs = [ pkgs.alsa-lib ];
 
               env = {
                 # Linked against the libasound of Nixpkgs, which needs a newer
                 # glibc, though each distribution loads its own
                 RUSTFLAGS = "-C link-arg=-Wl,--allow-shlib-undefined";
-                SOURCE_DATE_EPOCH = toString inputs.self.lastModified;
+                SOURCE_DATE_EPOCH = sourceDateEpoch;
               };
 
               buildPhase = ''
@@ -100,11 +101,11 @@
           # depends on the libraries that cinq needs to open a window
           nfpm =
             packager:
-            pkgs.runCommand "${cargo.name}-${packager}"
+            pkgs.runCommand "${crate.name}-${packager}"
               {
                 nativeBuildInputs = [ pkgs.nfpm ];
                 nfpmConfig = builtins.toJSON {
-                  inherit (cargo) name version description;
+                  inherit (crate) name version description;
                   arch = pkgs.stdenv.hostPlatform.go.GOARCH;
                   maintainer = "Yiyu Zhou <yiyu@yiyuzhou.io>";
                   license = "GPL-3.0-or-later";
@@ -161,8 +162,8 @@
             default = config.packages.cinq;
 
             cinq = pkgs.rustPlatform.buildRustPackage {
-              pname = cargo.name;
-              inherit (cargo) version;
+              pname = crate.name;
+              inherit (crate) version;
 
               src = lib.fileset.toSource {
                 root = ./.;
@@ -188,9 +189,7 @@
               # ALSA, which cpal plays sound through on GNU/Linux and FreeBSD
               buildInputs = lib.optionals (isLinux || isFreeBSD) [ pkgs.alsa-lib ];
 
-              # Manual pages dated by the latest commit rather than by the
-              # fixed date that builds take otherwise
-              env.SOURCE_DATE_EPOCH = toString inputs.self.lastModified;
+              env.SOURCE_DATE_EPOCH = sourceDateEpoch;
 
               # Share directory that the build lays out, whose desktop entry
               # is checked against its specification, and on Darwin the app
@@ -206,7 +205,7 @@
               '';
 
               meta = {
-                inherit (cargo) description;
+                inherit (crate) description;
                 license = lib.licenses.gpl3Plus;
                 mainProgram = "cinq";
               };
@@ -217,8 +216,8 @@
             # which cargo cross-builds against the SDK that Nixpkgs fetches
             # from Apple, linked by lld from the toolchain
             aarch64-darwin-cross = pkgs.stdenv.mkDerivation {
-              pname = "${cargo.name}-aarch64-darwin";
-              inherit (cargo) version;
+              pname = "${crate.name}-aarch64-darwin";
+              inherit (crate) version;
               inherit (config.packages.cinq) src cargoDeps;
 
               nativeBuildInputs = [
@@ -233,7 +232,7 @@
                 SDKROOT = "${pkgs.apple-sdk.src}";
                 CARGO_TARGET_AARCH64_APPLE_DARWIN_LINKER = "rust-lld";
                 CARGO_TARGET_AARCH64_APPLE_DARWIN_RUSTFLAGS = "-C linker-flavor=ld64.lld";
-                SOURCE_DATE_EPOCH = toString inputs.self.lastModified;
+                SOURCE_DATE_EPOCH = sourceDateEpoch;
               };
 
               buildPhase = ''
@@ -260,11 +259,13 @@
             inputsFrom = [ config.packages.cinq ];
 
             packages = [
-              pkgs.clippy
-              pkgs.reuse
               rustfmt
-              pkgs.rust-analyzer
-            ];
+            ]
+            ++ (with pkgs; [
+              clippy
+              reuse
+              rust-analyzer
+            ]);
 
             env = lib.optionalAttrs isLinux {
               LD_LIBRARY_PATH = lib.makeLibraryPath runtimeLibs;
@@ -292,7 +293,7 @@
               rustfmt = {
                 enable = true;
                 package = rustfmt;
-                inherit (cargo) edition;
+                inherit (crate) edition;
               };
               taplo.enable = true;
               xmllint.enable = true;
