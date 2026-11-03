@@ -1,0 +1,101 @@
+# SPDX-FileCopyrightText: 2026 Yiyu Zhou <yiyu@yiyuzhou.io>
+#
+# SPDX-License-Identifier: GPL-3.0-or-later
+
+# Installs the deb, rpm, and Arch packages on the distributions they are for,
+# runs cinq from each, and opens its window under a headless Weston
+on:
+  push:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@main
+      - uses: wimpysworld/nothing-but-nix@main
+      - uses: cachix/install-nix-action@master
+        with:
+          github_access_token: ${{ secrets.GITHUB_TOKEN }}
+      - run: nix build .#deb .#rpm .#archlinux && cp result*/* .
+      - uses: actions/upload-artifact@main
+        with:
+          name: packages
+          path: |
+            cinq_*.deb
+            cinq-*.rpm
+            cinq-*.pkg.tar.zst
+  install:
+    needs: build
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - image: debian:12
+            install: apt-get update && apt-get install -y ./cinq_*.deb
+          - image: debian:13
+            install: apt-get update && apt-get install -y ./cinq_*.deb
+          - image: debian:unstable
+            install: apt-get update && apt-get install -y ./cinq_*.deb
+          - image: ubuntu:22.04
+            install: apt-get update && apt-get install -y ./cinq_*.deb
+          - image: ubuntu:24.04
+            install: apt-get update && apt-get install -y ./cinq_*.deb
+          - image: fedora:latest
+            install: dnf install -y ./cinq-*.rpm
+          - image: almalinux:9
+            install: dnf install -y ./cinq-*.rpm
+          - image: archlinux:latest
+            install: pacman -Sy --noconfirm && pacman -U --noconfirm ./cinq-*.pkg.tar.zst
+    runs-on: ubuntu-latest
+    container: ${{ matrix.image }}
+    steps:
+      - uses: actions/download-artifact@main
+        with:
+          name: packages
+      - run: ${{ matrix.install }}
+      - run: |
+          echo "glibc $(getconf GNU_LIBC_VERSION)"
+          cinq --version
+          for file in man/man1/cinq.1 man/man5/cinq.5 man/man5/cinq-show.5 applications/cinq.desktop \
+            mime/packages/cinq.xml icons/hicolor/scalable/apps/cinq.svg bash-completion/completions/cinq; do
+            test -f "/usr/share/$file" || { echo "missing /usr/share/$file"; exit 1; }
+          done
+  window:
+    needs: build
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - image: debian:13
+            install: apt-get update && apt-get install -y ./cinq_*.deb weston fonts-dejavu-core
+          - image: fedora:latest
+            install: dnf install -y ./cinq-*.rpm weston dejavu-sans-mono-fonts
+          - image: archlinux:latest
+            install: pacman -Sy --noconfirm weston ttf-dejavu && pacman -U --noconfirm ./cinq-*.pkg.tar.zst
+    runs-on: ubuntu-latest
+    container: ${{ matrix.image }}
+    steps:
+      - uses: actions/download-artifact@main
+        with:
+          name: packages
+      - run: ${{ matrix.install }}
+      - run: |
+          export XDG_RUNTIME_DIR=$(mktemp -d)
+          weston --backend=headless --socket=cinq --debug > weston.log 2>&1 &
+          sleep 5
+          WAYLAND_DISPLAY=cinq timeout 20 cinq > cinq.log 2>&1 &
+          sleep 12
+          WAYLAND_DISPLAY=cinq weston-screenshooter || echo "no screenshot"
+          status=0
+          wait $! || status=$?
+          echo "--- cinq"; cat cinq.log
+          echo "--- weston"; tail -20 weston.log
+          test "$status" = 124 # Still running when timeout ended it
+      - if: always()
+        uses: actions/upload-artifact@main
+        with:
+          name: window-${{ strategy.job-index }}
+          path: wayland-screenshot*.png
+          if-no-files-found: ignore

@@ -51,6 +51,96 @@
             mv "$out/bin/cinq" "$out/Applications/cinq.app/Contents/MacOS"
             ln -s ../Applications/cinq.app/Contents/MacOS/cinq "$out/bin"
           '';
+          # cinq for other distributions of GNU/Linux, laid out under usr,
+          # which zig links against glibc 2.31 so that it runs with that glibc
+          # and every newer one
+          portable =
+            let
+              target = pkgs.stdenv.hostPlatform.rust.rustcTarget;
+            in
+            pkgs.stdenv.mkDerivation {
+              pname = "${cargo.name}-portable";
+              inherit (cargo) version;
+              inherit (config.packages.cinq) src cargoDeps;
+
+              nativeBuildInputs = [
+                pkgs.cargo
+              ]
+              ++ (with pkgs; [
+                cargo-zigbuild
+                pkg-config
+                rustPlatform.cargoSetupHook
+                rustc
+                scdoc
+                zig
+              ]);
+              buildInputs = [ pkgs.alsa-lib ];
+
+              env = {
+                # Linked against the libasound of Nixpkgs, which needs a newer
+                # glibc, though each distribution loads its own
+                RUSTFLAGS = "-C link-arg=-Wl,--allow-shlib-undefined";
+                SOURCE_DATE_EPOCH = toString inputs.self.lastModified;
+              };
+
+              buildPhase = ''
+                runHook preBuild
+                HOME=$TMPDIR cargo zigbuild --frozen --release --target ${target}.2.31
+                runHook postBuild
+              '';
+
+              installPhase = ''
+                runHook preInstall
+                install -D target/${target}/release/cinq "$out/usr/bin/cinq"
+                cp -r target/share "$out/usr"
+                runHook postInstall
+              '';
+            };
+          # Package of portable cinq in the format of nfpm's `packager`, which
+          # depends on the libraries that cinq needs to open a window
+          nfpm =
+            packager:
+            pkgs.runCommand "${cargo.name}-${packager}"
+              {
+                nativeBuildInputs = [ pkgs.nfpm ];
+                nfpmConfig = builtins.toJSON {
+                  inherit (cargo) name version description;
+                  arch = pkgs.stdenv.hostPlatform.go.GOARCH;
+                  maintainer = "Yiyu Zhou <yiyu@yiyuzhou.io>";
+                  license = "GPL-3.0-or-later";
+                  # Files alone, leaving their directories to the system
+                  contents = [
+                    {
+                      src = "usr/";
+                      dst = "/usr";
+                    }
+                  ];
+                  overrides = {
+                    deb.depends = [
+                      "libasound2t64 | libasound2"
+                      "libwayland-client0"
+                      "libxkbcommon0"
+                    ];
+                    rpm.depends = [
+                      "alsa-lib"
+                      "libwayland-client"
+                      "libxkbcommon"
+                    ];
+                    archlinux.depends = [
+                      "alsa-lib"
+                      "wayland"
+                      "libxkbcommon"
+                    ];
+                  };
+                };
+                passAsFile = [ "nfpmConfig" ];
+              }
+              ''
+                cp -r ${portable}/usr usr
+                chmod -R u+w usr
+                mkdir "$out"
+                nfpm package --config "$nfpmConfigPath" --packager ${packager} --target "$out"
+              '';
 
           # Libraries that cinq loads at run time rather than links: those
           # of winit and wgpu for Wayland alone, and libdbus, through which
@@ -160,6 +250,10 @@
                 runHook postInstall
               '';
             };
+
+            deb = nfpm "deb";
+            rpm = nfpm "rpm";
+            archlinux = nfpm "archlinux";
           };
 
           devShells.default = pkgs.mkShell {
