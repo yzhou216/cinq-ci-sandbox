@@ -29,8 +29,8 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - image: ghcr.io/void-linux/void-glibc:latest
-            alsa: xbps-install -Syu xbps && xbps-install -Sy alsa-lib libstdc++ tar # libstdc++ for the Node.js of the artifact step
+          - image: debian:unstable
+            alsa: apt-get update && apt-get install -y libasound2t64
     runs-on: ubuntu-latest
     container: ${{ matrix.image }}
     steps:
