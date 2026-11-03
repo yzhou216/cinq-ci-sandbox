@@ -98,7 +98,8 @@
               '';
             };
           # Package of portable cinq in the format of nfpm's `packager`, which
-          # depends on the libraries that cinq needs to open a window
+          # depends on ALSA and on the libraries that cinq loads, apart from
+          # those of the GPU, without which it draws in software
           nfpm =
             packager:
             pkgs.runCommand "${crate.name}-${packager}"
@@ -126,16 +127,19 @@
                   overrides = {
                     deb.depends = [
                       "libasound2t64 | libasound2"
+                      "libdbus-1-3"
                       "libwayland-client0"
                       "libxkbcommon0"
                     ];
                     rpm.depends = [
                       "alsa-lib"
+                      "dbus-libs"
                       "libwayland-client"
                       "libxkbcommon"
                     ];
                     archlinux.depends = [
                       "alsa-lib"
+                      "dbus"
                       "wayland"
                       "libxkbcommon"
                     ];
