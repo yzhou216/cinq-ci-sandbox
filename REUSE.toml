@@ -1,0 +1,10 @@
+# SPDX-FileCopyrightText: 2026 Yiyu Zhou <yiyu@yiyuzhou.io>
+#
+# SPDX-License-Identifier: GPL-3.0-or-later
+
+version = 1
+
+[[annotations]] # Lock files, which cannot hold a comment
+path = ["Cargo.lock", "flake.lock"]
+SPDX-FileCopyrightText = "2026 Yiyu Zhou <yiyu@yiyuzhou.io>"
+SPDX-License-Identifier = "GPL-3.0-or-later"

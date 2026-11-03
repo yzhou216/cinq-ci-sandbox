@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+SPDX-FileCopyrightText: 2026 Yiyu Zhou <yiyu@yiyuzhou.io>
+
+SPDX-License-Identifier: GPL-3.0-or-later
+-->
+<!-- Show files, a kind of TOML that cinq-show(5) describes -->
+<mime-info xmlns="http://www.freedesktop.org/standards/shared-mime-info">
+  <mime-type type="application/x-cinq-show">
+    <comment>cinq show</comment>
+    <sub-class-of type="application/toml"/>
+    <glob pattern="*.cinq.toml"/>
+  </mime-type>
+</mime-info>

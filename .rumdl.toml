@@ -1,0 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Yiyu Zhou <yiyu@yiyuzhou.io>
+#
+# SPDX-License-Identifier: GPL-3.0-or-later
+
+[global]
+disable = ["MD064"] # Use two spaces after full stops

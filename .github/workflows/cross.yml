@@ -1,0 +1,74 @@
+# SPDX-FileCopyrightText: 2026 Yiyu Zhou <yiyu@yiyuzhou.io>
+#
+# SPDX-License-Identifier: GPL-3.0-or-later
+
+# Cross-builds cinq for Apple silicon on Ubuntu with nix build, then tries
+# the result on macOS
+on:
+  push:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  ubuntu:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@main
+      - uses: wimpysworld/nothing-but-nix@main
+      - uses: cachix/install-nix-action@master
+        with:
+          github_access_token: ${{ secrets.GITHUB_TOKEN }}
+      - run: nix build .#macos
+      - name: Layout of the result
+        working-directory: result
+        run: |
+          find . -mindepth 1 | sort | sed 's|^\./||' | while read -r path; do
+            if [ -L "$path" ]; then
+              echo "$path -> $(readlink "$path")"
+            elif [ -d "$path" ]; then
+              echo "$path/"
+            else
+              echo "$path ($(stat -c %s "$path") bytes)"
+            fi
+          done
+          file Applications/cinq.app/Contents/MacOS/cinq
+      - run: tar -cf cinq-macos.tar -C result . # Tar keeps the modes and the symlink, which artifacts lose
+      - uses: actions/upload-artifact@main
+        with:
+          name: cinq-macos
+          path: cinq-macos.tar
+  macos:
+    needs: ubuntu
+    runs-on: macos-latest
+    steps:
+      - uses: actions/download-artifact@main
+        with:
+          name: cinq-macos
+      - run: |
+          mkdir prefix
+          tar -xf cinq-macos.tar -C prefix
+          chmod -R u+w prefix
+      - name: Program
+        run: |
+          otool -L prefix/Applications/cinq.app/Contents/MacOS/cinq
+          codesign --display --verbose=2 prefix/Applications/cinq.app/Contents/MacOS/cinq
+          prefix/Applications/cinq.app/Contents/MacOS/cinq --version
+          prefix/bin/cinq --version
+      - name: Bundle
+        run: |
+          codesign --force --sign - prefix/Applications/cinq.app
+          codesign --verify --strict --verbose=2 prefix/Applications/cinq.app
+      - name: Launch
+        run: |
+          open --stdout "$PWD/cinq.log" --stderr "$PWD/cinq.log" prefix/Applications/cinq.app
+          sleep 15
+          screencapture -x screen.png || echo "screencapture failed"
+          cat cinq.log
+          pgrep -lx cinq # Still running
+          pkill -x cinq
+      - if: always()
+        uses: actions/upload-artifact@main
+        with:
+          name: screen
+          path: screen.png
+          if-no-files-found: ignore

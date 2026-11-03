@@ -1,0 +1,18 @@
+# SPDX-FileCopyrightText: 2026 Yiyu Zhou <yiyu@yiyuzhou.io>
+#
+# SPDX-License-Identifier: GPL-3.0-or-later
+
+# Entry that application launchers list cinq by, named after the Wayland
+# application ID of its window, through which compositors match the two
+[Desktop Entry]
+Type=Application
+Name=cinq
+GenericName=Show Controller
+Comment=Minimal cue-based show controller in the spirit of QLab
+Icon=cinq
+Keywords=QLab;cue;show;theatre;theater;sound;
+Categories=AudioVideo;Audio;
+Exec=cinq %f
+MimeType=application/x-cinq-show;
+Terminal=false
+SingleMainWindow=true
