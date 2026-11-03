@@ -1,0 +1,56 @@
+# SPDX-FileCopyrightText: 2026 Yiyu Zhou <yiyu@yiyuzhou.io>
+#
+# SPDX-License-Identifier: GPL-3.0-or-later
+
+# Tries cinq as Nix builds it for GNU/Linux on distributions without Nix,
+# each with the glibc that it ships
+on:
+  push:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@main
+      - uses: wimpysworld/nothing-but-nix@main
+      - uses: cachix/install-nix-action@master
+        with:
+          github_access_token: ${{ secrets.GITHUB_TOKEN }}
+      - run: nix build && tar -cf cinq-x86_64-linux.tar -C result .
+      - uses: actions/upload-artifact@main
+        with:
+          name: cinq-x86_64-linux
+          path: cinq-x86_64-linux.tar
+  try:
+    needs: build
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - image: debian:12
+            alsa: apt-get update && apt-get install -y libasound2
+          - image: debian:13
+            alsa: apt-get update && apt-get install -y libasound2t64
+          - image: ubuntu:24.04
+            alsa: apt-get update && apt-get install -y libasound2t64
+          - image: fedora:latest
+            alsa: dnf install -y alsa-lib
+          - image: archlinux:latest
+            alsa: pacman -Sy --noconfirm alsa-lib
+          - image: ghcr.io/void-linux/void-glibc:latest
+            alsa: xbps-install -Syu xbps && xbps-install -Sy alsa-lib
+    runs-on: ubuntu-latest
+    container: ${{ matrix.image }}
+    steps:
+      - uses: actions/download-artifact@main
+        with:
+          name: cinq-x86_64-linux
+      - run: ${{ matrix.alsa }}
+      - run: |
+          echo "glibc $(getconf GNU_LIBC_VERSION)"
+          mkdir prefix
+          tar -xf cinq-x86_64-linux.tar -C prefix
+          prefix/bin/cinq --version || echo "As built, cinq does not start"
+          /lib64/ld-linux-x86-64.so.2 prefix/bin/cinq --version
