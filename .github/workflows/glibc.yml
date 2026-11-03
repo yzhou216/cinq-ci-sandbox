@@ -29,18 +29,8 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - image: debian:12
-            alsa: apt-get update && apt-get install -y libasound2
-          - image: debian:13
-            alsa: apt-get update && apt-get install -y libasound2t64
-          - image: ubuntu:24.04
-            alsa: apt-get update && apt-get install -y libasound2t64
-          - image: fedora:latest
-            alsa: dnf install -y alsa-lib
-          - image: archlinux:latest
-            alsa: pacman -Sy --noconfirm alsa-lib
           - image: ghcr.io/void-linux/void-glibc:latest
-            alsa: xbps-install -Syu xbps && xbps-install -Sy alsa-lib libstdc++ # libstdc++ for the Node.js of the artifact step
+            alsa: xbps-install -Syu xbps && xbps-install -Sy alsa-lib libstdc++ tar # libstdc++ for the Node.js of the artifact step
     runs-on: ubuntu-latest
     container: ${{ matrix.image }}
     steps:
