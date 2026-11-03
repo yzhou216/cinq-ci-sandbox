@@ -2,15 +2,15 @@
 #
 # SPDX-License-Identifier: GPL-3.0-or-later
 
-# Cross-builds cinq for Apple silicon on Ubuntu with nix build, then tries
-# the result on Darwin
+# Cross-builds cinq for Apple silicon on Ubuntu and tries it on Darwin, and
+# builds it natively on Darwin with plain nix build
 on:
   push:
   workflow_dispatch:
 permissions:
   contents: read
 jobs:
-  ubuntu:
+  cross:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@main
@@ -19,6 +19,44 @@ jobs:
         with:
           github_access_token: ${{ secrets.GITHUB_TOKEN }}
       - run: nix build .#aarch64-darwin-cross
+      - run: tar -cf cinq-aarch64-darwin.tar -C result . # Tar keeps the modes and the symlink, which artifacts lose
+      - uses: actions/upload-artifact@main
+        with:
+          name: cinq-aarch64-darwin
+          path: cinq-aarch64-darwin.tar
+  try-cross:
+    needs: cross
+    runs-on: macos-latest
+    steps:
+      - uses: actions/download-artifact@main
+        with:
+          name: cinq-aarch64-darwin
+      - run: |
+          mkdir prefix
+          tar -xf cinq-aarch64-darwin.tar -C prefix
+          chmod -R u+w prefix
+          prefix/bin/cinq --version
+          codesign --force --sign - prefix/Applications/cinq.app
+          codesign --verify --strict --verbose=2 prefix/Applications/cinq.app
+          open prefix/Applications/cinq.app
+          sleep 15
+          screencapture -x screen.png || echo "screencapture failed"
+          pgrep -lx cinq # Still running
+          pkill -x cinq
+      - if: always()
+        uses: actions/upload-artifact@main
+        with:
+          name: screen-cross
+          path: screen.png
+          if-no-files-found: ignore
+  native:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@main
+      - uses: cachix/install-nix-action@master
+        with:
+          github_access_token: ${{ secrets.GITHUB_TOKEN }}
+      - run: nix build
       - name: Layout of the result
         working-directory: result
         run: |
@@ -28,47 +66,21 @@ jobs:
             elif [ -d "$path" ]; then
               echo "$path/"
             else
-              echo "$path ($(stat -c %s "$path") bytes)"
+              echo "$path ($(wc -c < "$path" | tr -d ' ') bytes)"
             fi
           done
           file Applications/cinq.app/Contents/MacOS/cinq
-      - run: tar -cf cinq-macos.tar -C result . # Tar keeps the modes and the symlink, which artifacts lose
-      - uses: actions/upload-artifact@main
-        with:
-          name: cinq-macos
-          path: cinq-macos.tar
-  macos:
-    needs: ubuntu
-    runs-on: macos-latest
-    steps:
-      - uses: actions/download-artifact@main
-        with:
-          name: cinq-macos
       - run: |
-          mkdir prefix
-          tar -xf cinq-macos.tar -C prefix
-          chmod -R u+w prefix
-      - name: Program
-        run: |
-          otool -L prefix/Applications/cinq.app/Contents/MacOS/cinq
-          codesign --display --verbose=2 prefix/Applications/cinq.app/Contents/MacOS/cinq
-          prefix/Applications/cinq.app/Contents/MacOS/cinq --version
-          prefix/bin/cinq --version
-      - name: Bundle
-        run: |
-          codesign --force --sign - prefix/Applications/cinq.app
-          codesign --verify --strict --verbose=2 prefix/Applications/cinq.app
-      - name: Launch
-        run: |
-          open --stdout "$PWD/cinq.log" --stderr "$PWD/cinq.log" prefix/Applications/cinq.app
+          otool -L result/Applications/cinq.app/Contents/MacOS/cinq
+          result/bin/cinq --version
+          open result/Applications/cinq.app
           sleep 15
           screencapture -x screen.png || echo "screencapture failed"
-          cat cinq.log
           pgrep -lx cinq # Still running
           pkill -x cinq
       - if: always()
         uses: actions/upload-artifact@main
         with:
-          name: screen
+          name: screen-native
           path: screen.png
           if-no-files-found: ignore

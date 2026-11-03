@@ -63,9 +63,8 @@ then run `update-mime-database` with its `share/mime` directory.
 
 Builds for Darwin also lay out the app bundle, `cinq.app`, in
 `target/Applications`, with all but the program, which goes into its
-`Contents/MacOS`.  On GNU/Linux, the dev shell cross-builds for Apple
-silicon with `cargo build --release --target aarch64-apple-darwin`, and
-`nix build .#aarch64-darwin-cross` lays out the whole package.
+`Contents/MacOS`.  On GNU/Linux, `nix build .#aarch64-darwin-cross`
+cross-builds the package for Apple silicon.
 
 ## Configuration
 

@@ -82,10 +82,7 @@ fn main() {
         ),
     ]
     .into_iter()
-    .chain(darwin.then(|| {
-        let applications = share.with_file_name("Applications");
-        ("lay out the app bundle", assemble(&applications))
-    }))
+    .chain(darwin.then(|| ("lay out the app bundle", assemble(share))))
     .filter_map(|(what, done)| done.err().map(|error| (what, error)))
     .for_each(|(what, error)| println!("cargo::error=cannot {what}: {error}"));
 }
@@ -138,11 +135,11 @@ fn draw(directory: &Path) -> io::Result<()> {
     write(&directory.join("cinq.svg"), logo::svg())
 }
 
-/// Lays out the app bundle for Darwin in `applications`: Info.plist, the
-/// icon, and the empty directory for the program, which the build script
-/// runs too early to fill
-fn assemble(applications: &Path) -> io::Result<()> {
-    let contents = applications.join("cinq.app/Contents");
+/// Lays out the app bundle for Darwin in the Applications directory beside
+/// `share`: Info.plist, the icon, and the empty directory for the program,
+/// which the build script runs too early to fill
+fn assemble(share: &Path) -> io::Result<()> {
+    let contents = share.with_file_name("Applications/cinq.app/Contents");
     fs::create_dir_all(contents.join("MacOS"))?;
     write(&contents.join("Info.plist"), bundle::info_plist())?;
     write(&contents.join("Resources/cinq.icns"), bundle::icns()?)

@@ -38,20 +38,11 @@
           cargo = (lib.importTOML ./Cargo.toml).package;
           # Rustfmt with the unstable settings of rustfmt.toml turned on
           rustfmt = pkgs.rustfmt.override { asNightly = true; };
-          # Rust's own build of the release that Nixpkgs builds rustc from,
-          # with the standard library for Apple silicon, which Nixpkgs cannot
-          # build on GNU/Linux, for cargo to cross-build for Darwin there
+          # Rust's own toolchain of the release that Nixpkgs builds rustc
+          # from, with the standard library for Apple silicon, which Nixpkgs
+          # cannot build on GNU/Linux
           rust = (inputs.rust-overlay.lib.mkRustBin { } pkgs).stable.${pkgs.rustc.version}.minimal.override {
-            extensions = [ "clippy" ];
-            targets = lib.optionals isLinux [ "aarch64-apple-darwin" ];
-          };
-          # Settings with which cargo cross-builds for Apple silicon: the SDK
-          # that Nixpkgs fetches from Apple, unchanged, linked against with
-          # lld from the toolchain
-          crossEnv = {
-            SDKROOT = "${pkgs.apple-sdk.src}";
-            CARGO_TARGET_AARCH64_APPLE_DARWIN_LINKER = "rust-lld";
-            CARGO_TARGET_AARCH64_APPLE_DARWIN_RUSTFLAGS = "-C linker-flavor=ld64.lld";
+            targets = [ "aarch64-apple-darwin" ];
           };
           # Moves the program into the app bundle that builds for Darwin lay
           # out, and links it back from bin
@@ -132,8 +123,9 @@
             };
           }
           // lib.optionalAttrs isLinux {
-            # cinq for Apple silicon, which cargo cross-builds, laid out as
-            # the package for Darwin is
+            # cinq for Apple silicon, laid out as the package for Darwin is,
+            # which cargo cross-builds against the SDK that Nixpkgs fetches
+            # from Apple, linked by lld from the toolchain
             aarch64-darwin-cross = pkgs.stdenv.mkDerivation {
               pname = "${cargo.name}-aarch64-darwin";
               inherit (cargo) version;
@@ -141,11 +133,16 @@
 
               nativeBuildInputs = [
                 rust
-                pkgs.rustPlatform.cargoSetupHook
-                pkgs.scdoc
-              ];
+              ]
+              ++ (with pkgs; [
+                rustPlatform.cargoSetupHook
+                scdoc
+              ]);
 
-              env = crossEnv // {
+              env = {
+                SDKROOT = "${pkgs.apple-sdk.src}";
+                CARGO_TARGET_AARCH64_APPLE_DARWIN_LINKER = "rust-lld";
+                CARGO_TARGET_AARCH64_APPLE_DARWIN_RUSTFLAGS = "-C linker-flavor=ld64.lld";
                 SOURCE_DATE_EPOCH = toString inputs.self.lastModified;
               };
 
@@ -168,17 +165,16 @@
           devShells.default = pkgs.mkShell {
             inputsFrom = [ config.packages.cinq ];
 
-            # Toolchain first, ahead of the cargo and rustc of the package
             packages = [
-              rust
+              pkgs.clippy
               pkgs.reuse
               rustfmt
               pkgs.rust-analyzer
             ];
 
-            env = lib.optionalAttrs isLinux (
-              crossEnv // { LD_LIBRARY_PATH = lib.makeLibraryPath runtimeLibs; }
-            );
+            env = lib.optionalAttrs isLinux {
+              LD_LIBRARY_PATH = lib.makeLibraryPath runtimeLibs;
+            };
           };
 
           # What nix flake check holds the repository to, along with the
