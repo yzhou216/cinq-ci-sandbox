@@ -19,7 +19,7 @@
 //! every row first, since the inspector shows them all.
 
 use iced::{
-    Element, Fill, Length, Padding, Theme, padding,
+    Element, Fill, Length, Theme, padding,
     widget::{
         Radio, column, container, mouse_area, radio, responsive, rule, scrollable, space, table,
         text, text::Wrapping,
@@ -157,7 +157,7 @@ fn list(app: &App, room: f32) -> Element<'_, Message> {
             .iter()
             .map(move |&(column, width)| table_column(app, column, width, titled))
     };
-    let free = Padding::ZERO.right(SCROLL_BAR);
+    let free = padding::right(SCROLL_BAR);
     let header = table::table(columns(true), &[])
         .padding_x(CELL_PADDING)
         .padding_y(ROW_PADDING)

@@ -32,13 +32,11 @@ fn one(text: &str) -> Option<Press> {
 /// one amounts to
 fn typed(text: &str) -> Outcome {
     let keymap = Keymap::default();
-    keys(text).into_iter().fold(
-        Outcome {
-            pending: Vec::new(),
-            action: None,
-        },
-        |outcome, press| keymap.parse(&outcome.pending, press),
-    )
+    keys(text)
+        .into_iter()
+        .fold(Outcome::default(), |outcome, press| {
+            keymap.parse(&outcome.pending, press)
+        })
 }
 
 fn action(text: &str) -> Option<(Action, Option<usize>)> {

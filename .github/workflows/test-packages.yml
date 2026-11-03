@@ -94,7 +94,9 @@ jobs:
           - image: archlinux:latest
             install: pacman -Sy --noconfirm sway grim ttf-dejavu && pacman -U --noconfirm ./cinq-*.pkg.tar.zst
     runs-on: ubuntu-latest
-    container: ${{ matrix.image }}
+    container:
+      image: ${{ matrix.image }}
+      options: --cap-add=SYS_NICE # Which sway holds as a file capability on Fedora and Arch
     steps:
       - uses: actions/download-artifact@main
         with:

@@ -32,7 +32,8 @@ use crate::back::items::replaced;
 pub(super) struct History {
     undo: Vec<Change>,
     redo: Vec<Change>,
-    latest: Option<Turn>,
+    /// Way that the latest change went, while undo or redo still holds it
+    turn: Option<Turn>,
 }
 
 impl History {
@@ -40,7 +41,7 @@ impl History {
     /// to make again
     fn recorded(self, change: Change) -> Self {
         let length = self.undo.len();
-        let joins = self.latest == Some(Turn::Done)
+        let joins = self.turn == Some(Turn::Done)
             && self.undo.last().is_some_and(|last| last.takes(&change));
         let undo: Vec<Change> = if joins {
             replaced(self.undo, length - 1, |last| last.then(change))
@@ -48,24 +49,19 @@ impl History {
             self.undo.into_iter().chain([change]).collect()
         };
         // Changes in a row that end where they began leave nothing to undo
-        if joins && undo.last().is_some_and(Change::changes_nothing) {
-            return Self {
-                undo: undo.into_iter().take(length - 1).collect(),
-                redo: Vec::new(),
-                latest: None,
-            };
-        }
+        let cancelled = joins && undo.last().is_some_and(Change::changes_nothing);
+        let kept = undo.len() - usize::from(cancelled);
         Self {
-            undo,
+            undo: undo.into_iter().take(kept).collect(),
             redo: Vec::new(),
-            latest: Some(Turn::Done),
+            turn: (!cancelled).then_some(Turn::Done),
         }
     }
 
     /// Returns the way the latest change went, with the change that undo
     /// or redo acts on now
     fn latest(&self) -> Option<(Turn, &Change)> {
-        match self.latest? {
+        match self.turn? {
             Turn::Undone => self.redo.last().map(|change| (Turn::Undone, change)),
             turn => self.undo.last().map(|change| (turn, change)),
         }
@@ -75,24 +71,24 @@ impl History {
     /// list of redo
     fn undoing(self) -> (Self, Option<Change>) {
         let (undo, redo, change) = moved(self.undo, self.redo);
-        let latest = change.as_ref().map_or(self.latest, |_| Some(Turn::Undone));
-        (Self { undo, redo, latest }, change)
+        let turn = change.as_ref().map_or(self.turn, |_| Some(Turn::Undone));
+        (Self { undo, redo, turn }, change)
     }
 
     /// Takes the change that redo makes again next off its list and onto
     /// the list of undo
     fn redoing(self) -> (Self, Option<Change>) {
         let (redo, undo, change) = moved(self.redo, self.undo);
-        let latest = change.as_ref().map_or(self.latest, |_| Some(Turn::Redone));
-        (Self { undo, redo, latest }, change)
+        let turn = change.as_ref().map_or(self.turn, |_| Some(Turn::Redone));
+        (Self { undo, redo, turn }, change)
     }
 
     /// Forgets the moves of a list's standby, which GO has moved on from,
     /// including those that adding a cue made
     fn without_moves_of(self, list: usize) -> Self {
-        let latest = match self.latest() {
+        let turn = match self.latest() {
             Some((_, change)) if change.moves_standby_of(list) => None,
-            _ => self.latest,
+            _ => self.turn,
         };
         let kept = |changes: Vec<Change>| -> Vec<Change> {
             changes
@@ -104,7 +100,7 @@ impl History {
         Self {
             undo: kept(self.undo),
             redo: kept(self.redo),
-            latest,
+            turn,
         }
     }
 }

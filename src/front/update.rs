@@ -344,8 +344,8 @@ fn open_link(target: &OsStr) -> Result<(), String> {
 }
 
 /// Opens the configuration file `file` as [`open_link`] does, after making
-/// it when it is not there yet, except on Apple's systems, which open it in
-/// the default text editor, since few programs there say they open TOML.
+/// it when it is not there yet, except on Darwin, which opens it in the
+/// default text editor, since few programs there say they open TOML.
 /// Returns why it failed, if it did.
 fn edit_config(file: &Path) -> Result<(), String> {
     keymap::config::make(file)

@@ -100,7 +100,8 @@ impl Audio {
                     .map(|cue| (cue.id, (cue, active, clip)))
             })
             .collect();
-        // Sounds whose cue has stopped, or which GO has fired again
+        // Voices that play on, and those whose cue has stopped or which GO
+        // has fired again
         let (mut kept, ended): (HashMap<_, _>, HashMap<_, _>) = std::mem::take(&mut self.voices)
             .into_iter()
             .partition(|(id, voice)| {
@@ -112,8 +113,8 @@ impl Audio {
         let (voices, failures) = sounding
             .into_iter()
             .partition_map(|(id, (cue, active, clip))| {
-                // Sound made ready ahead if there is one, or else the file
-                // opened now
+                // Voice that plays already, or else the sound made ready
+                // ahead if there is one, or else the file opened now
                 let voice = kept.remove(&id).map_or_else(
                     || {
                         let path = workspace
@@ -233,12 +234,12 @@ fn probe(file: &Path) -> Media {
         Ok(data) => Media::Loaded {
             duration: data.duration().as_secs_f32(),
         },
-        Err(error) => Media::Failed(reason(&error)),
+        Err(error) => Media::Failed(reason(error)),
     }
 }
 
 /// Describes why a sound file cannot be played
-fn reason(error: &FromFileError) -> String {
+fn reason(error: FromFileError) -> String {
     match error {
         FromFileError::IoError(error) if error.kind() == io::ErrorKind::NotFound => {
             "file not found".to_owned()

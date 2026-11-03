@@ -7,7 +7,7 @@
 use super::{Action, Keymap, Press};
 
 /// What a key press amounts to, after the keys typed before it
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, Default, PartialEq)]
 pub struct Outcome {
     /// Keys of a command typed halfway, which wait for more
     pub pending: Vec<Press>,
@@ -53,10 +53,7 @@ impl Keymap {
                 action: None,
             },
             Found::Nothing if !pending.is_empty() => self.parse(&[], press),
-            Found::Nothing => Outcome {
-                pending: Vec::new(),
-                action: None,
-            },
+            Found::Nothing => Outcome::default(),
         }
     }
 

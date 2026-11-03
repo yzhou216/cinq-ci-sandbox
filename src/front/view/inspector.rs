@@ -10,7 +10,7 @@
 mod field;
 
 use iced::{
-    Center, Element, Fill, Length,
+    Center, Element, Fill,
     widget::{checkbox, column, progress_bar, radio, row, rule, slider, table, text, text_input},
 };
 use strum::VariantArray;
@@ -57,7 +57,7 @@ pub(super) fn view(app: &App) -> Element<'_, Message> {
         row![tabs, rule::vertical(1), body]
             .spacing(SPACING)
             .padding(SPACING)
-            .height(Length::Fixed(240.0)),
+            .height(240),
         &app.config.keymap,
     )
 }

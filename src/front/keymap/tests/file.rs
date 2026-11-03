@@ -82,6 +82,13 @@ fn file_reports_bindings_that_hide_others() {
 }
 
 #[test]
+fn file_listing_keys_twice_for_one_action_binds_them_once() {
+    let (keymap, problems) = config::parse("[keys]\ngo = [\"F5\", \"F5\"]\n");
+    assert!(problems.is_empty(), "{problems:?}");
+    assert_eq!(keymap.keys(Action::Go), [keys("F5")]);
+}
+
+#[test]
 fn file_is_in_the_configuration_directory_of_the_platform() {
     assert_eq!(
         config::file(None),

@@ -52,7 +52,7 @@ impl Workspace {
     /// any list, and records it with the standby of its list before and
     /// after, which the new cue can take.  Once the identities have run
     /// out, no cue is added.
-    pub(super) fn with_new_cue(self, list: usize, kind: Kind, at: Place) -> Self {
+    pub(super) fn added(self, list: usize, kind: Kind, at: Place) -> Self {
         let Some(id) = self.next_cue_id() else {
             return self;
         };
@@ -80,7 +80,7 @@ impl Workspace {
 
     /// Deletes cues as one change, with the places they had and where
     /// standby was before and after
-    pub(super) fn without(self, ids: &[CueId]) -> Self {
+    pub(super) fn deleted(self, ids: &[CueId]) -> Self {
         // Cues in the order of their places, which is the order undo puts
         // them back in
         let cues: Vec<Placed> = ids
@@ -171,22 +171,18 @@ impl Workspace {
     /// identities that none of the lists holds.
     pub(super) fn with_lists(self, lists: Vec<CueList>) -> Self {
         let lists = super::listed(lists);
-        let next_id = super::next_id(&lists).max(self.next_id);
-        let held = |id: CueId| lists.iter().any(|cues| cues.position(id).is_some());
-        let gone: Vec<CueId> = self
+        let workspace = Self {
+            next_id: super::next_id(&lists).max(self.next_id),
+            lists,
+            ..self
+        };
+        let gone: Vec<CueId> = workspace
             .active
             .iter()
             .map(|active| active.id)
-            .filter(|&id| !held(id))
+            .filter(|&id| workspace.cue(id).is_none())
             .collect();
-        gone.into_iter().fold(
-            Self {
-                lists,
-                next_id,
-                ..self
-            },
-            Self::stopped,
-        )
+        gone.into_iter().fold(workspace, Self::stopped)
     }
 
     /// Removes cues from their lists and stops those that are running,

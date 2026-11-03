@@ -175,7 +175,7 @@ fn show_mode_keeps_the_lists_from_being_restored() {
     let locked = storm()
         .apply(Command::ShowMode(true))
         .apply(Command::Restore(Vec::new()));
-    assert_eq!(locked.lists().len(), 1);
+    assert_eq!(ids(&locked), [1, 2]);
 }
 
 #[test]

@@ -365,9 +365,7 @@ impl<'a, T: ToString + PartialEq + Clone + 'a> Widget<Message, Theme, Renderer>
                 state.focused = false;
                 self.open(choice, shell);
             }
-            _ if pressed(event) && state.shared.is_open() => {
-                choice.click_beside(over, shell);
-            }
+            _ if pressed(event) && state.shared.is_open() => choice.click_beside(over, shell),
             _ if pressed(event) && over => self.open(choice, shell),
             Event::Window(window::Event::RedrawRequested(_)) => state.over = over,
             _ if over != state.over => shell.request_redraw(),

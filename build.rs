@@ -50,17 +50,11 @@ use src::{
 };
 
 fn main() {
-    [
-        "src/bundle.rs",
-        "src/cli.rs",
-        "src/logo.rs",
-        "src/man.rs",
-        "man/cinq.5.scd",
-        "man/cinq-show.5.scd",
-    ]
-    .iter()
-    .chain(&SHARED)
-    .for_each(|file| println!("cargo::rerun-if-changed={file}"));
+    // Files that the build reads as it runs, unlike the modules and pages
+    // that it compiles in, a change to which rebuilds and so reruns it
+    SHARED
+        .iter()
+        .for_each(|file| println!("cargo::rerun-if-changed={file}"));
     ["CINQ_SHARE_DIR", "SOURCE_DATE_EPOCH"]
         .iter()
         .for_each(|variable| println!("cargo::rerun-if-env-changed={variable}"));

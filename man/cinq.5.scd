@@ -4,7 +4,7 @@ cinq(5) "cinq" "File Formats Manual"
 ; SPDX-License-Identifier: GPL-3.0-or-later
 
 ; The lines after "; if" belong only to the pages of the platforms that it
-; names, xdg, macos, or windows, until the next "; if" or "; end".
+; names, xdg, darwin, or windows, until the next "; if" or "; end".
 
 # NAME
 
@@ -14,7 +14,7 @@ cinq - configuration file for the keys of cinq
 
 ; if xdg
 _$XDG_CONFIG_HOME/cinq/config.toml_
-; if macos
+; if darwin
 _~/Library/Application Support/cinq/config.toml_
 ; if windows
 _%APPDATA%\\cinq\\config.toml_
@@ -38,7 +38,7 @@ license of cinq.
 Following the link opens the file in
 ; if xdg windows
 the program that the desktop opens it with,
-; if macos
+; if darwin
 the default text editor,
 ; end
 and first makes the file when it is not there yet, holding only a line
@@ -51,7 +51,7 @@ _$XDG_CONFIG_HOME/cinq/config.toml_
 	The configuration file, in the directory of the user's configuration,
 	which is _~/.config_ when *XDG_CONFIG_HOME* is unset or is not an
 	absolute path, as the XDG Base Directory Specification sets out.
-; if macos
+; if darwin
 _~/Library/Application Support/cinq/config.toml_
 	The configuration file, in the directory of the user's application
 	support files.

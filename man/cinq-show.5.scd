@@ -4,7 +4,7 @@ cinq-show(5) "cinq" "File Formats Manual"
 ; SPDX-License-Identifier: GPL-3.0-or-later
 
 ; The lines after "; if" belong only to the pages of the platforms that it
-; names, xdg, macos, or windows, until the next "; if" or "; end".
+; names, xdg, darwin, or windows, until the next "; if" or "; end".
 
 # NAME
 
@@ -126,7 +126,7 @@ As they happen, *cinq* keeps them in a file of their own, in the directory
 
 where *XDG_STATE_HOME* is _~/.local/state_ when it is unset or is not an
 absolute path, as the XDG Base Directory Specification sets out.
-; if macos
+; if darwin
 	_~/Library/Application Support/cinq/unsaved_
 ; if windows
 	_%LOCALAPPDATA%\\cinq\\unsaved_

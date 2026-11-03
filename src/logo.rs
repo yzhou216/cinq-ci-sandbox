@@ -38,7 +38,7 @@ const RED: &str = "#b3202e";
 const DARK_RED: &str = "#8e1622";
 /// Valance, cords, front of the stage, and light
 const GOLD: &str = "#e2b33c";
-/// The 5
+/// Digit 5
 const CREAM: &str = "#f4e6c8";
 
 /// Width of the strokes of the name, at the size that it is lettered at
@@ -96,7 +96,7 @@ fn pool() -> Layer {
     Layer::fill(pool.to_path(TOLERANCE), GOLD).opacity(0.3)
 }
 
-/// The 5, center stage: a top bar, a stem, and a round bowl, drawn as one
+/// Digit 5, center stage: a top bar, a stem, and a round bowl, drawn as one
 /// stroke
 fn five() -> Layer {
     let bowl = Circle::new((63.5, 76.0), 14.0);

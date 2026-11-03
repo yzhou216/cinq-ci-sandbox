@@ -33,7 +33,7 @@ fn targets_go_by_where_dirs_finds_the_configuration() {
     assert_eq!(Platform::of("linux"), Platform::Xdg);
     assert_eq!(Platform::of("freebsd"), Platform::Xdg);
     assert_eq!(Platform::of("openbsd"), Platform::Xdg);
-    assert_eq!(Platform::of("macos"), Platform::Macos);
+    assert_eq!(Platform::of("macos"), Platform::Darwin);
     assert_eq!(Platform::of("windows"), Platform::Windows);
 }
 
@@ -79,7 +79,7 @@ fn pages_name_the_files_of_their_platform_alone() {
 fn command_page_names_wayland_only_where_the_window_needs_it() {
     let needs = |platform: Platform| command_page(platform, DATE).contains("WAYLAND_DISPLAY");
     assert!(needs(Platform::Xdg));
-    assert!(!needs(Platform::Macos));
+    assert!(!needs(Platform::Darwin));
     assert!(!needs(Platform::Windows));
 }
 

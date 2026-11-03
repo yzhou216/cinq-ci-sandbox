@@ -33,8 +33,8 @@ fn scallop_hangs_below_a_line_that_runs_from_right_to_left() {
     let bounds = scallop(Point::new(20.0, 10.0), Point::new(0.0, 10.0), 6.0)
         .to_path(TOLERANCE)
         .bounding_box();
-    assert!((bounds.x0 - 0.0).abs() < 0.01 && (bounds.x1 - 20.0).abs() < 0.01);
-    assert!((bounds.y0 - 10.0).abs() < 0.01 && (bounds.y1 - 16.0).abs() < 0.01);
+    assert!(near(bounds.origin(), 0.0, 10.0));
+    assert!(near(Point::new(bounds.x1, bounds.y1), 20.0, 16.0));
 }
 
 #[test]

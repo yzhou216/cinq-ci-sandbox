@@ -17,15 +17,14 @@ mod tests;
 
 use iced::{
     Center, Color, Element, Fill, never,
-    widget::{
-        container, responsive, rich_text, row, span, text,
-        text::{LineHeight, Wrapping},
-    },
+    widget::{container, responsive, rich_text, row, span, text, text::Wrapping},
 };
 use itertools::Itertools;
 use unicode_width::UnicodeWidthStr;
 
-use super::{LINE, SPACING, TEXT_SIZE, answered, char_width, format, giving_way, theme, warnings};
+use super::{
+    LINE, SPACING, answered, char_width, format, giving_way, line_height, theme, warnings,
+};
 use crate::{
     back::Turn,
     front::{
@@ -41,7 +40,7 @@ const YIELDING: [Action; 4] = [Action::Go, Action::Panic, Action::Save, Action::
 pub(super) fn view(app: &App) -> Element<'_, Message> {
     // Bar is one line of text high with the gap around it, since a
     // responsive widget fills all the height it is given
-    let height = LineHeight::default().to_absolute(TEXT_SIZE).0 + 2.0 * SPACING;
+    let height = line_height() + 2.0 * SPACING;
     container(responsive(move |size| bar(app, size.width)))
         .height(height)
         .into()

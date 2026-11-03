@@ -46,7 +46,7 @@ impl Voice {
         active: &Active,
         clip: Clip,
     ) -> Result<Self, String> {
-        let data = StreamingSoundData::from_file(file).map_err(|error| super::reason(&error))?;
+        let data = StreamingSoundData::from_file(file).map_err(super::reason)?;
         let data = clipped(data, clip, clip.position(active.played()), active.level);
         let sound = manager.play(data).map_err(|error| error.to_string())?;
         Ok(Self::of(sound, active))

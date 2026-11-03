@@ -24,10 +24,8 @@ fn show_mode_blocks_edits_but_not_playback() {
 fn new_cue_before_another_targets_the_cue_it_follows() {
     let workspace =
         workspace(vec![audio(1), audio(2)]).apply(add(0, Kind::Fade, Place::Before(CueId(2))));
-    let cues = &workspace.lists()[0].cues;
-    let order: Vec<CueId> = cues.iter().map(|cue| cue.id).collect();
-    assert_eq!(order, [CueId(1), CueId(3), CueId(2)]);
-    assert_eq!(cues[1].target, Some(CueId(1)));
+    assert_eq!(ids(&workspace), [1, 3, 2]);
+    assert_eq!(workspace.lists()[0].cues[1].target, Some(CueId(1)));
 }
 
 #[test]

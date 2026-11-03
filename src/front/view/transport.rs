@@ -16,7 +16,6 @@ use crate::front::{App, Message};
 pub(super) fn view(app: &App) -> Element<'_, Message> {
     let list = app.current();
     let standby = list.standby.and_then(|id| app.workspace.cue(id));
-    let active = app.workspace.active();
     // Summary keeps to three lines, each cut short at the edge rather than
     // wrapped, so that the parts below stay where they are as standby moves
     let [title, notes, chain] = standby.map_or_else(
@@ -45,8 +44,7 @@ pub(super) fn view(app: &App) -> Element<'_, Message> {
         text(notes).wrapping(Wrapping::None),
         text(chain).wrapping(Wrapping::None),
     ];
-    let playing = app.running();
-    let paused = active.iter().any(|cue| cue.paused);
+    let paused = app.workspace.active().iter().any(|active| active.paused);
     row![
         button(text("GO").size(40))
             .style(theme::go)
@@ -54,7 +52,7 @@ pub(super) fn view(app: &App) -> Element<'_, Message> {
         container(summary).width(Fill).clip(true),
         column![
             row![
-                button("Pause all").on_press_maybe(playing.then_some(Message::PauseAll)),
+                button("Pause all").on_press_maybe(app.running().then_some(Message::PauseAll)),
                 button("Resume all").on_press_maybe(paused.then_some(Message::ResumeAll)),
                 button("Panic").style(theme::panic).on_press(Message::Panic),
             ]

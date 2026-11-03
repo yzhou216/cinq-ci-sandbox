@@ -78,8 +78,8 @@ fn reading_the_file_does_not_make_the_watcher_read_it_again() -> io::Result<()> 
     until(&configs, from_file(Preset::Cua));
     // Reading opens the file, which the watcher sees as well, so a watcher
     // that took the opening for a change would read the file over and over.
-    // FSEvents on Apple's systems may still report the write made just
-    // before the watch began, which reads the file once more, and no more.
+    // FSEvents on Darwin may still report the write made just before the
+    // watch began, which reads the file once more, and no more.
     let again = iter::from_fn(|| configs.recv_timeout(Duration::from_secs(2)).ok())
         .take(2)
         .count();

@@ -137,10 +137,9 @@ impl Preloader {
 /// Opens the sound of `wanted` at `level`, and begins decoding it from the
 /// start of its clip
 fn preloaded(wanted: &Wanted, level: f32) -> Result<Preloaded, String> {
-    let data =
-        StreamingSoundData::from_file(&wanted.path).map_err(|error| super::reason(&error))?;
+    let data = StreamingSoundData::from_file(&wanted.path).map_err(super::reason)?;
     let (sound, handle) = voice::clipped(data, wanted.clip, wanted.clip.start, level)
         .into_sound()
-        .map_err(|error| super::reason(&error))?;
+        .map_err(super::reason)?;
     Ok(Preloaded { sound, handle })
 }

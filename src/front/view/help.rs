@@ -6,8 +6,8 @@
 //!
 //! The page links to the list of key values and to the configuration file,
 //! each of which opens in the program that the desktop opens it with, apart
-//! from the configuration file on Apple's systems, which opens in the
-//! default text editor.  The link makes a configuration file that is not
+//! from the configuration file on Darwin, which opens in the default text
+//! editor.  The link makes a configuration file that is not
 //! there yet.  The page ends with the notice of the license of cinq.  The
 //! keys of the next and previous cue scroll it, and those of the first and
 //! last cue go to its top and its bottom.

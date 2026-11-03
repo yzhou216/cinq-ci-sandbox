@@ -44,36 +44,32 @@ type Watcher = Debouncer<RecommendedWatcher, RecommendedCache>;
 /// once more, with a problem that tells why the changes do not apply.
 pub fn watch(file: PathBuf) -> impl Stream<Item = Config> {
     stream::channel(1, async move |mut output| {
-        let (sender, mut events) = mpsc::unbounded();
-        let watcher = new_debouncer(SETTLE, None, move |result| {
-            // Channel closes only once the stream has gone
-            let _ = sender.unbounded_send(result);
-        });
-        let mut watcher = match watcher {
-            Ok(watcher) => watcher,
-            Err(error) => {
-                let _ = output.send(unwatched(&file, &error)).await;
-                return;
-            }
-        };
-        let mut watched = None;
-        loop {
-            watched = match rewatch(&mut watcher, watched.as_deref(), &file) {
-                Ok(directory) => directory,
-                Err(error) => {
-                    let _ = output.send(unwatched(&file, &error)).await;
-                    return;
-                }
-            };
-            let _ = output.send(load(Some(&file))).await;
-            let touched = (&mut events)
-                .any(|result| future::ready(touches(&result, &file)))
-                .await;
-            if !touched {
-                return;
-            }
+        if let Err(error) = follow(&file, &mut output).await {
+            let _ = output.send(unwatched(&file, &error)).await;
         }
     })
+}
+
+/// Sends the configuration that `file` holds to `output` once the watch is
+/// in place and again after each change to the file, or returns why the
+/// file cannot be watched
+async fn follow(file: &Path, output: &mut mpsc::Sender<Config>) -> notify::Result<()> {
+    let (sender, mut events) = mpsc::unbounded();
+    let mut watcher = new_debouncer(SETTLE, None, move |result| {
+        // Channel closes only once the stream has gone
+        let _ = sender.unbounded_send(result);
+    })?;
+    let mut watched = None;
+    loop {
+        watched = rewatch(&mut watcher, watched.as_deref(), file)?;
+        let _ = output.send(load(Some(file))).await;
+        let touched = (&mut events)
+            .any(|result| future::ready(touches(&result, file)))
+            .await;
+        if !touched {
+            return Ok(());
+        }
+    }
 }
 
 /// Returns the configuration that `file` holds, with a problem that tells

@@ -58,8 +58,8 @@ pub const TEXT_SIZE: Pixels = Pixels(16.0);
 /// scroll while it is open
 pub const HELP: &str = "help";
 
-/// Returns the height of a line of text, as far as the help page scrolls
-/// for one key
+/// Returns the height of a line of text, which sets the height of the
+/// status bar and how far the help page scrolls for one key
 pub fn line_height() -> f32 {
     f32::from(LineHeight::default().to_absolute(TEXT_SIZE))
 }
@@ -93,10 +93,11 @@ pub fn answered(told: String, keymap: &Keymap, action: Action) -> String {
 
 /// Draws the window, its parts stacked with rules between them, the keys
 /// that can come next over them just above the status bar, and the help
-/// page over everything while it is open.  Each layer keeps its place
-/// whether or not it shows, since iced matches the state of each widget to
-/// the widget in the same place, so that the cue list stays scrolled where
-/// it was, and the fields keep what they hold, as the layers come and go.
+/// page over everything while it is open.  The layers that come and go lie
+/// over those that stay, since iced leaves a missing layer out of its stack
+/// and matches the state of each widget to the widget in the same place,
+/// so that the cue list stays scrolled where it was, and the fields keep
+/// what they hold, as the layers come and go.
 pub fn view(app: &App) -> Element<'_, Message> {
     let parts = column![
         transport::view(app),

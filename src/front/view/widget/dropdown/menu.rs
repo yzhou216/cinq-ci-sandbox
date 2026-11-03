@@ -251,10 +251,9 @@ impl<T: ToString + Clone> Overlay<Message, Theme, Renderer> for Menu<'_, T> {
                 modified_key,
                 modifiers,
                 ..
-            }) => {
-                let press = Press::from_key(modified_key, *modifiers);
-                self.choice.press(key, press, shell);
-            }
+            }) => self
+                .choice
+                .press(key, Press::from_key(modified_key, *modifiers), shell),
             _ if pressed(event) && !cursor.is_over(layout.bounds()) => {
                 self.choice.click_beside(cursor.is_over(self.target), shell);
             }
@@ -401,9 +400,7 @@ impl<T: ToString + Clone> Widget<Message, Theme, Renderer> for Rows<'_, T> {
                 highlight.set(row);
                 shell.request_redraw();
             }
-            _ if pressed(event) && row.is_some() => {
-                self.choice.pick(row, shell);
-            }
+            _ if pressed(event) && row.is_some() => self.choice.pick(row, shell),
             _ => {}
         }
     }

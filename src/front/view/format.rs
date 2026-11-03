@@ -33,13 +33,10 @@ pub fn wait(seconds: f64) -> String {
 /// audio cue, marked when it loops, a question mark while that is unknown,
 /// and a dash for instant cues
 pub fn action(cue: &Cue) -> String {
+    let length = clock(cue.action().into());
     match (cue.kind, &cue.media) {
-        (Kind::Audio, Media::Loaded { .. }) if cue.loops() => {
-            format!("{} loop", clock(cue.action().into()))
-        }
-        (Kind::Audio, Media::Loaded { .. }) | (Kind::Fade | Kind::Wait, _) => {
-            clock(cue.action().into())
-        }
+        (Kind::Audio, Media::Loaded { .. }) if cue.loops() => format!("{length} loop"),
+        (Kind::Audio, Media::Loaded { .. }) | (Kind::Fade | Kind::Wait, _) => length,
         (Kind::Audio, _) => "?".to_owned(),
         (Kind::Stop | Kind::Memo, _) => "-".to_owned(),
     }
@@ -107,11 +104,7 @@ pub fn phase(active: &Active) -> String {
 /// its level, and the level of an audio cue
 pub fn activity(active: &Active, cue: &Cue) -> String {
     let paused = if active.paused { "paused, " } else { "" };
-    let fading = if active.fade.is_some() {
-        ", fading"
-    } else {
-        ""
-    };
+    let fading = active.fade.map_or("", |_| ", fading");
     let level = if cue.kind == Kind::Audio {
         format!(", {} dB", decibels(active.level))
     } else {
@@ -152,18 +145,16 @@ pub fn chain(workspace: &Workspace, list: &CueList, standby: &Cue) -> String {
 /// Describes a change to the show in few words, starting in lower case, as
 /// the status bar tells what undo or redo acts on
 pub fn change(workspace: &Workspace, change: &Change) -> String {
+    let named = |id| workspace.cue(id).map_or_else(String::new, number);
     match change {
         Change::Added { placed, .. } => format!("added cue {}", number(&placed.cue)),
         Change::Deleted { cues, .. } => match cues.as_slice() {
             [placed] => format!("deleted cue {}", number(&placed.cue)),
             cues => format!("deleted {} cues", cues.len()),
         },
-        Change::Moved { cue, .. } => {
-            let cue = workspace.cue(*cue).map_or_else(String::new, number);
-            format!("moved cue {cue}")
-        }
+        Change::Moved { cue, .. } => format!("moved cue {}", named(*cue)),
         Change::Edited { cue, redo, .. } => {
-            let cue = workspace.cue(*cue).map_or_else(String::new, number);
+            let cue = named(*cue);
             match redo {
                 Edit::Number(_) => format!("changed the number of cue {cue}"),
                 Edit::Name(_) => format!("changed the name of cue {cue}"),

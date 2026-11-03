@@ -9,9 +9,10 @@
 //! and cinq-show(5) come from their scdoc sources, of which the build keeps
 //! only the parts for the platform, for scdoc to render in turn.  The pages
 //! differ by platform only in where the configuration file and the unsaved
-//! changes are, which the dirs crate decides, and in the Wayland compositor
-//! that the window needs on GNU/Linux and the BSDs.  The program itself
-//! leaves this module out: only the build script and the tests compile it.
+//! changes are, which the dirs crate decides, in the program that opens the
+//! configuration file, and in the Wayland compositor that the window needs
+//! on GNU/Linux and the BSDs.  The program itself leaves this module out:
+//! only the build script and the tests compile it.
 
 #[cfg(test)]
 mod tests;
@@ -69,8 +70,8 @@ pub enum Platform {
     /// POSIX systems that follow the XDG Base Directory Specification, such
     /// as GNU/Linux and the BSDs
     Xdg,
-    /// Apple's systems, whose directory is `~/Library/Application Support`
-    Macos,
+    /// Darwin, whose directory is `~/Library/Application Support`
+    Darwin,
     /// Windows, whose directory holds the roaming application data
     Windows,
 }
@@ -81,7 +82,7 @@ impl Platform {
     pub fn of(target_os: &str) -> Self {
         match target_os {
             "windows" => Platform::Windows,
-            "macos" | "ios" => Platform::Macos,
+            "macos" | "ios" => Platform::Darwin,
             _ => Platform::Xdg,
         }
     }
@@ -96,7 +97,7 @@ impl Platform {
     fn config_file(self) -> &'static str {
         match self {
             Platform::Xdg => "$XDG_CONFIG_HOME/cinq/config.toml",
-            Platform::Macos => "~/Library/Application Support/cinq/config.toml",
+            Platform::Darwin => "~/Library/Application Support/cinq/config.toml",
             Platform::Windows => r"%APPDATA%\cinq\config.toml",
         }
     }
@@ -106,7 +107,7 @@ impl Platform {
     fn unsaved_directory(self) -> &'static str {
         match self {
             Platform::Xdg => "$XDG_STATE_HOME/cinq/unsaved",
-            Platform::Macos => "~/Library/Application Support/cinq/unsaved",
+            Platform::Darwin => "~/Library/Application Support/cinq/unsaved",
             Platform::Windows => r"%LOCALAPPDATA%\cinq\unsaved",
         }
     }

@@ -115,9 +115,9 @@ impl Action {
     }
 
     /// Returns the message that the action sends.  A count typed before
-    /// its keys repeats a move of the selection or of a cue, deletes as many
-    /// cues, or picks the row that [`Action::First`] and [`Action::Last`] go
-    /// to.
+    /// its keys repeats a move of the selection, of a cue, or between cue
+    /// lists, deletes as many cues, or picks the row that [`Action::First`]
+    /// and [`Action::Last`] go to.
     pub fn message(self, count: Option<usize>) -> Message {
         let times = count.unwrap_or(1);
         let step = isize::try_from(times).unwrap_or(isize::MAX);

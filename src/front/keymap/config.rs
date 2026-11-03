@@ -65,7 +65,7 @@ type Entry = (Action, Vec<Vec<Press>>);
 /// Where the key bindings came from
 #[derive(Debug, Clone, Default)]
 pub enum Source {
-    /// Configuration file that was read
+    /// Configuration file that is there, even when it cannot be read
     File(PathBuf),
     /// Defaults, which the missing file would change
     Missing(PathBuf),
@@ -269,5 +269,7 @@ fn entry(name: &str, value: &Value) -> (Option<Entry>, Vec<String>) {
             _ => Err(format!("{name} should be keys or a list of keys")),
         })
         .partition_result();
+    // Sequence listed twice binds it once
+    let sequences = sequences.into_iter().unique().collect();
     (Some((action, sequences)), problems)
 }

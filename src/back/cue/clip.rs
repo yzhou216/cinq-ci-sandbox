@@ -5,9 +5,9 @@
 //! Part of a sound file that an audio cue plays
 
 /// Part of its sound file that an audio cue plays, from `start` to `end`
-/// in seconds into the file, which comes before `end`.  A clip that loops
-/// plays from its start again each time it reaches its end, until
-/// something stops its cue.
+/// in seconds into the file, where `start` comes before `end`.  A clip
+/// that loops plays from its start again each time it reaches its end,
+/// until something stops its cue.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Clip {
     pub(in crate::back) start: f64,

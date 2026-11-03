@@ -113,15 +113,9 @@ impl Keymap {
 
     /// Writes the key sequences bound to an action as a list, or `none`
     pub fn listed(&self, action: Action) -> String {
-        let keys = self
-            .keys(action)
-            .iter()
-            .map(|keys| written(keys))
-            .join(", ");
-        if keys.is_empty() {
-            "none".to_owned()
-        } else {
-            keys
+        match self.keys(action) {
+            [] => "none".to_owned(),
+            keys => keys.iter().map(|keys| written(keys)).join(", "),
         }
     }
 
@@ -186,7 +180,10 @@ fn binding(text: &str) -> Result<Vec<Press>, String> {
     })
 }
 
-/// Describes how a binding hides one that comes after it, if it does
+/// Describes how one of two bindings, in the order of [`Action::VARIANTS`],
+/// hides the other, if one does: a sequence bound to both actions goes to
+/// the earlier alone, and a sequence that begins a longer one, earlier or
+/// later, keeps the longer from being typed
 fn conflict((earlier, keys): Binding, (later, other): Binding) -> Option<String> {
     if keys == other {
         let (earlier, later) = (earlier.name(), later.name());

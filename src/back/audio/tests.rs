@@ -182,8 +182,13 @@ fn sound_no_longer_wanted_is_let_go() {
     let (_directory, wanted) = silent_file();
     let mut preloader = Preloader::new();
     preloader.want(vec![ask(&wanted)]);
-    preloader.want(Vec::new());
-    thread::sleep(Duration::from_millis(200));
-    preloader.collect();
+    let other = Ask {
+        cue: CueId(2),
+        ..ask(&wanted)
+    };
+    preloader.want(vec![other]);
+    // Thread makes what it is asked for in order, so the first sound has
+    // come back once the second has
+    assert!(made(&mut preloader, CueId(2), &wanted).is_some());
     assert!(preloader.take(CueId(1), &wanted).is_none());
 }

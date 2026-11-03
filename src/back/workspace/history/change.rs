@@ -4,7 +4,7 @@
 
 //! What a change to the show records, which is only what it touched
 
-use std::mem::{self, Discriminant};
+use std::mem;
 
 use crate::back::{Cue, CueId, CueList, Edit};
 
@@ -91,9 +91,15 @@ impl Change {
     pub(super) fn takes(&self, next: &Change) -> bool {
         match (self, next) {
             (Change::Moved { cue, .. }, Change::Moved { cue: next, .. }) => cue == next,
-            _ => self
-                .setting()
-                .is_some_and(|setting| next.setting() == Some(setting)),
+            (
+                Change::Edited { cue, redo, .. },
+                Change::Edited {
+                    cue: next,
+                    redo: again,
+                    ..
+                },
+            ) => cue == next && mem::discriminant(redo) == mem::discriminant(again),
+            _ => false,
         }
     }
 
@@ -139,13 +145,5 @@ impl Change {
 
     pub(super) fn moves_standby_of(&self, list: usize) -> bool {
         matches!(self, Change::Standby(standby) if standby.list == list)
-    }
-
-    /// Returns the cue and the setting that an edit changed
-    fn setting(&self) -> Option<(CueId, Discriminant<Edit>)> {
-        match self {
-            Change::Edited { cue, redo, .. } => Some((*cue, mem::discriminant(redo))),
-            _ => None,
-        }
     }
 }
