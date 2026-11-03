@@ -13,10 +13,9 @@
 //! zsh, fish, and Nushell go where each shell looks for them, and the logo,
 //! drawn as the icon of the desktop entry, goes in the hicolor icon theme,
 //! next to the desktop entry and the type of show files from `share`.
-//! Builds for macOS also lay out the app bundle in the directory that
-//! `CINQ_APPLICATIONS_DIR` names, as the Applications directory of a prefix
-//! holds it, with all but the program, which a package copies into it.  A
-//! relative directory goes from the root of the package.
+//! Builds for Darwin also lay out the app bundle, all but the program, in
+//! the Applications directory beside it.  A relative directory goes from
+//! the root of the package.
 
 // Modules of the program that the build compiles as well, which keep their
 // own modules where the program finds them
@@ -62,22 +61,14 @@ fn main() {
     .iter()
     .chain(&SHARED)
     .for_each(|file| println!("cargo::rerun-if-changed={file}"));
-    [
-        "CINQ_APPLICATIONS_DIR",
-        "CINQ_SHARE_DIR",
-        "MACOSX_DEPLOYMENT_TARGET",
-        "SOURCE_DATE_EPOCH",
-    ]
-    .iter()
-    .for_each(|variable| println!("cargo::rerun-if-env-changed={variable}"));
+    ["CINQ_SHARE_DIR", "SOURCE_DATE_EPOCH"]
+        .iter()
+        .for_each(|variable| println!("cargo::rerun-if-env-changed={variable}"));
     let Some(share) = env::var_os("CINQ_SHARE_DIR") else {
         return;
     };
     let share = Path::new(&share);
-    // App bundle, which only builds for macOS lay out
-    let app = env::var_os("CINQ_APPLICATIONS_DIR")
-        .filter(|_| env::var("CARGO_CFG_TARGET_OS").is_ok_and(|target| target == "macos"))
-        .map(|applications| ("lay out the app bundle", assemble(Path::new(&applications))));
+    let darwin = env::var("CARGO_CFG_TARGET_OS").is_ok_and(|target| target == "macos");
     [
         ("render the manual pages", render(&share.join("man"))),
         ("write the shell completions", complete(share)),
@@ -91,7 +82,10 @@ fn main() {
         ),
     ]
     .into_iter()
-    .chain(app)
+    .chain(darwin.then(|| {
+        let applications = share.with_file_name("Applications");
+        ("lay out the app bundle", assemble(&applications))
+    }))
     .filter_map(|(what, done)| done.err().map(|error| (what, error)))
     .for_each(|(what, error)| println!("cargo::error=cannot {what}: {error}"));
 }
@@ -144,19 +138,13 @@ fn draw(directory: &Path) -> io::Result<()> {
     write(&directory.join("cinq.svg"), logo::svg())
 }
 
-/// Lays out the app bundle for macOS in `applications`: Info.plist, the
-/// icon, and the empty directory that the program goes in, which the build
-/// script runs too early to fill.  Info.plist gives the release of macOS
-/// that `MACOSX_DEPLOYMENT_TARGET` names, when it is set, as the oldest that
-/// the app runs on.
+/// Lays out the app bundle for Darwin in `applications`: Info.plist, the
+/// icon, and the empty directory for the program, which the build script
+/// runs too early to fill
 fn assemble(applications: &Path) -> io::Result<()> {
     let contents = applications.join("cinq.app/Contents");
-    let minimum = env::var("MACOSX_DEPLOYMENT_TARGET").ok();
     fs::create_dir_all(contents.join("MacOS"))?;
-    write(
-        &contents.join("Info.plist"),
-        bundle::info_plist(minimum.as_deref()),
-    )?;
+    write(&contents.join("Info.plist"), bundle::info_plist())?;
     write(&contents.join("Resources/cinq.icns"), bundle::icns()?)
 }
 

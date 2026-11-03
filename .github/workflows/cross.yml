@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 # Cross-builds cinq for Apple silicon on Ubuntu with nix build, then tries
-# the result on macOS
+# the result on Darwin
 on:
   push:
   workflow_dispatch:
@@ -18,7 +18,7 @@ jobs:
       - uses: cachix/install-nix-action@master
         with:
           github_access_token: ${{ secrets.GITHUB_TOKEN }}
-      - run: nix build .#macos
+      - run: nix build .#aarch64-darwin-cross
       - name: Layout of the result
         working-directory: result
         run: |

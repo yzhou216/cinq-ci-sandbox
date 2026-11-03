@@ -4,7 +4,7 @@
 
 //! Tests of the command line and its shell completions, of the desktop
 //! entry that runs it, and of the share directory and the app bundle for
-//! macOS that the build lays out
+//! Darwin that the build lays out
 
 use std::path::{Path, PathBuf};
 
@@ -92,23 +92,20 @@ fn build_lays_out_the_share_directory_of_a_prefix() {
 }
 
 #[test]
-fn build_for_macos_lays_out_the_app_bundle_but_the_program() {
-    // Builds for other systems lay out no bundle, and neither does a build
-    // that finds no `.cargo/config.toml`
-    let Some(applications) =
-        option_env!("CINQ_APPLICATIONS_DIR").filter(|_| cfg!(target_os = "macos"))
-    else {
+fn build_for_darwin_lays_out_the_app_bundle_beside_the_share_directory() {
+    // Builds for other systems lay out no bundle
+    let Some(share) = option_env!("CINQ_SHARE_DIR").filter(|_| cfg!(target_os = "macos")) else {
         return;
     };
-    let contents = Path::new(applications).join("cinq.app/Contents");
-    let missing: Vec<&str> = ["Info.plist", "Resources/cinq.icns"]
+    let contents = Path::new(share).with_file_name("Applications/cinq.app/Contents");
+    let missing: Vec<&str> = ["Info.plist", "MacOS", "Resources/cinq.icns"]
         .into_iter()
-        .filter(|file| !contents.join(file).is_file())
+        .filter(|path| !contents.join(path).exists())
         .collect();
-    assert!(missing.is_empty(), "{applications} lacks {missing:?}");
     assert!(
-        contents.join("MacOS").is_dir(),
-        "{applications} has no MacOS"
+        missing.is_empty(),
+        "{} lacks {missing:?}",
+        contents.display()
     );
 }
 

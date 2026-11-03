@@ -3,5 +3,4 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 [env] # Where every build, the Nix build included, puts what it renders
-CINQ_APPLICATIONS_DIR = { value = "target/Applications", relative = true } # App bundle, for builds for macOS
-CINQ_SHARE_DIR = { value = "target/share", relative = true }               # Laid out as the share directory of a prefix
+CINQ_SHARE_DIR = { value = "target/share", relative = true } # Laid out as the share directory of a prefix

@@ -39,20 +39,27 @@
           # Rustfmt with the unstable settings of rustfmt.toml turned on
           rustfmt = pkgs.rustfmt.override { asNightly = true; };
           # Rust's own build of the release that Nixpkgs builds rustc from,
-          # with the standard library for Apple silicon on GNU/Linux, which
-          # Nixpkgs cannot build there, so that cargo cross-builds for macOS
+          # with the standard library for Apple silicon, which Nixpkgs cannot
+          # build on GNU/Linux, for cargo to cross-build for Darwin there
           rust = (inputs.rust-overlay.lib.mkRustBin { } pkgs).stable.${pkgs.rustc.version}.minimal.override {
             extensions = [ "clippy" ];
             targets = lib.optionals isLinux [ "aarch64-apple-darwin" ];
           };
-          # What cargo needs on GNU/Linux to cross-build for macOS: the SDK
-          # that Nixpkgs fetches from Apple, as Apple ships it, to link
-          # against with lld from the toolchain
-          macosCross = {
+          # Settings with which cargo cross-builds for Apple silicon: the SDK
+          # that Nixpkgs fetches from Apple, unchanged, linked against with
+          # lld from the toolchain
+          crossEnv = {
             SDKROOT = "${pkgs.apple-sdk.src}";
             CARGO_TARGET_AARCH64_APPLE_DARWIN_LINKER = "rust-lld";
             CARGO_TARGET_AARCH64_APPLE_DARWIN_RUSTFLAGS = "-C linker-flavor=ld64.lld";
           };
+          # Moves the program into the app bundle that builds for Darwin lay
+          # out, and links it back from bin
+          installBundle = ''
+            cp -r target/Applications "$out"
+            mv "$out/bin/cinq" "$out/Applications/cinq.app/Contents/MacOS"
+            ln -s ../Applications/cinq.app/Contents/MacOS/cinq "$out/bin"
+          '';
 
           # Libraries that cinq loads at run time rather than links: those
           # of winit and wgpu for Wayland alone, and libdbus, through which
@@ -105,11 +112,13 @@
               env.SOURCE_DATE_EPOCH = toString inputs.self.lastModified;
 
               # Share directory that the build lays out, whose desktop entry
-              # is checked against its specification
+              # is checked against its specification, and on Darwin the app
+              # bundle
               postInstall = ''
                 cp -r target/share "$out"
                 desktop-file-validate "$out/share/applications/cinq.desktop"
-              '';
+              ''
+              + lib.optionalString isDarwin installBundle;
 
               postFixup = lib.optionalString isLinux ''
                 patchelf --add-rpath ${lib.makeLibraryPath runtimeLibs} "$out/bin/cinq"
@@ -122,73 +131,11 @@
               };
             };
           }
-          // lib.optionalAttrs isDarwin {
-            # Application bundle that runs on macOS without Nix: libiconv,
-            # the one library that cinq takes from the store, comes from
-            # macOS instead, since Nixpkgs builds it from Apple's own source,
-            # and the bundle is signed ad hoc, as Apple silicon requires of
-            # all code
-            app =
-              let
-                info = pkgs.writeText "Info.plist" (
-                  lib.generators.toPlist { escape = true; } {
-                    CFBundleExecutable = "cinq";
-                    CFBundleIconFile = "cinq";
-                    CFBundleIdentifier = "io.yiyuzhou.cinq";
-                    CFBundleInfoDictionaryVersion = "6.0";
-                    CFBundleName = "cinq";
-                    CFBundlePackageType = "APPL";
-                    CFBundleShortVersionString = cargo.version;
-                    CFBundleVersion = cargo.version;
-                    LSMinimumSystemVersion = pkgs.stdenvNoCC.hostPlatform.darwinMinVersion; # Oldest release that Nixpkgs builds for
-                    NSHighResolutionCapable = true;
-                    NSHumanReadableCopyright = "Copyright (C) 2026 Yiyu Zhou";
-                  }
-                );
-                # Logo that the build draws, from which every size of the icon is rendered
-                logo = "${config.packages.cinq}/share/icons/hicolor/scalable/apps/cinq.svg";
-              in
-              pkgs.runCommandLocal "cinq-app-${cargo.version}"
-                {
-                  nativeBuildInputs = with pkgs; [
-                    cctools
-                    python3Packages.icnsutil
-                    rcodesign
-                    resvg
-                  ];
-                }
-                ''
-                  install -m 755 ${config.packages.cinq}/bin/cinq .
-                  install_name_tool -change ${lib.getLib pkgs.libiconv}/lib/libiconv.2.dylib \
-                    /usr/lib/libiconv.2.dylib cinq
-                  # Load commands, none of which may name the store
-                  commands=$(otool -l cinq)
-                  if grep /nix/store <<<"$commands"; then
-                    exit 1
-                  fi
-
-                  mkdir icons
-                  for size in 16 32 128 256 512; do
-                    resvg -w "$size" ${logo} "icons/icon_''${size}x''${size}.png"
-                    resvg -w "$((size * 2))" ${logo} "icons/icon_''${size}x''${size}@2x.png"
-                  done
-
-                  contents=$out/cinq.app/Contents
-                  install -D cinq "$contents/MacOS/cinq"
-                  install -D -m 644 ${info} "$contents/Info.plist"
-                  mkdir "$contents/Resources"
-                  icnsutil compose --toc "$contents/Resources/cinq.icns" icons/*
-                  rcodesign sign "$out/cinq.app"
-                  # Run once, which macOS allows only when the signature holds and every library loads
-                  "$contents/MacOS/cinq" --version
-                '';
-          }
           // lib.optionalAttrs isLinux {
-            # cinq for Apple silicon, which cargo cross-builds, laid out as a
-            # package for macOS holds it: the app bundle that the build lays
-            # out, with the program copied in, and the share directory
-            macos = pkgs.stdenv.mkDerivation {
-              pname = "${cargo.name}-macos";
+            # cinq for Apple silicon, which cargo cross-builds, laid out as
+            # the package for Darwin is
+            aarch64-darwin-cross = pkgs.stdenv.mkDerivation {
+              pname = "${cargo.name}-aarch64-darwin";
               inherit (cargo) version;
               inherit (config.packages.cinq) src cargoDeps;
 
@@ -198,7 +145,7 @@
                 pkgs.scdoc
               ];
 
-              env = macosCross // {
+              env = crossEnv // {
                 SOURCE_DATE_EPOCH = toString inputs.self.lastModified;
               };
 
@@ -210,10 +157,9 @@
 
               installPhase = ''
                 runHook preInstall
-                mkdir -p "$out/bin"
-                cp -r target/Applications target/share "$out"
-                cp target/aarch64-apple-darwin/release/cinq "$out/Applications/cinq.app/Contents/MacOS"
-                ln -s ../Applications/cinq.app/Contents/MacOS/cinq "$out/bin/cinq"
+                install -D target/aarch64-apple-darwin/release/cinq "$out/bin/cinq"
+                cp -r target/share "$out"
+                ${installBundle}
                 runHook postInstall
               '';
             };
@@ -231,10 +177,7 @@
             ];
 
             env = lib.optionalAttrs isLinux (
-              {
-                LD_LIBRARY_PATH = lib.makeLibraryPath runtimeLibs;
-              }
-              // macosCross
+              crossEnv // { LD_LIBRARY_PATH = lib.makeLibraryPath runtimeLibs; }
             );
           };
 

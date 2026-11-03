@@ -49,16 +49,14 @@ toml = { version = "1.1", default-features = false, features = [
 ] }
 unicode-width = "0.2" # Columns of a character on screen, which iced brings
 
-[build-dependencies] # Manual pages, completions, the icon, with iced's kurbo, and the macOS app
+[build-dependencies] # Manual pages, completions, the icon, with iced's kurbo, and the app bundle for Darwin
 clap = { version = "4.6", features = ["derive"] }
 clap_complete = "4.6"
 clap_complete_nushell = "4.6"
 clap_mangen = "0.3"
-icns = { version = "0.5", default-features = false, features = [
-  "pngio",
-] } # Icon of the app, without JPEG 2000
+icns = { version = "0.5", default-features = false, features = ["pngio"] }
 kurbo = "0.10"
-resvg = { version = "0.49", default-features = false } # Logo drawn at each size of the icon
+resvg = { version = "0.49", default-features = false }
 strum = { version = "0.28", features = ["derive"] }
 time = { version = "0.3", default-features = false, features = ["std"] }
 
