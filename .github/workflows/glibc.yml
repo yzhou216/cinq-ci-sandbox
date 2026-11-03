@@ -40,14 +40,14 @@ jobs:
           - image: archlinux:latest
             alsa: pacman -Sy --noconfirm alsa-lib
           - image: ghcr.io/void-linux/void-glibc:latest
-            alsa: xbps-install -Syu xbps && xbps-install -Sy alsa-lib
+            alsa: xbps-install -Syu xbps && xbps-install -Sy alsa-lib libstdc++ # libstdc++ for the Node.js of the artifact step
     runs-on: ubuntu-latest
     container: ${{ matrix.image }}
     steps:
+      - run: ${{ matrix.alsa }} # First, as Void lacks what the artifact step needs
       - uses: actions/download-artifact@main
         with:
           name: cinq-x86_64-linux
-      - run: ${{ matrix.alsa }}
       - run: |
           echo "glibc $(getconf GNU_LIBC_VERSION)"
           mkdir prefix
