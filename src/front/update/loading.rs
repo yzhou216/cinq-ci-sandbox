@@ -71,7 +71,7 @@ impl App {
     /// found, unless another show has taken its place since
     fn with_found(self, show: u64, found: Vec<Command>) -> Self {
         if show == self.show.id() {
-            found.into_iter().fold(self, Self::send)
+            self.send_all(found)
         } else {
             self
         }

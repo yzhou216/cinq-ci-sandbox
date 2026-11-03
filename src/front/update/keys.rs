@@ -43,15 +43,11 @@ impl App {
         match outcome.action {
             Some((action, _)) if repeat && action.acts_at_once() => (app, Task::none()),
             Some((action @ (Action::Next | Action::Previous), count)) if app.help => {
+                let down = if action == Action::Next { 1.0 } else { -1.0 };
                 let lines = count.map_or(1.0, |count| count as f32);
-                let down = if action == Action::Next {
-                    lines
-                } else {
-                    -lines
-                };
                 let offset = AbsoluteOffset {
                     x: 0.0,
-                    y: down * view::line_height(),
+                    y: down * lines * view::line_height(),
                 };
                 (app, operation::scroll_by(view::HELP, offset))
             }

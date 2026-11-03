@@ -4,7 +4,7 @@
 
 # Installs the deb, rpm, and Arch packages on the distributions they are for,
 # runs cinq from each, removes it again, and opens its window under a headless
-# Weston
+# sway
 on:
   push:
   workflow_dispatch:
@@ -43,7 +43,10 @@ jobs:
           - image: debian:unstable
             install: apt-get update && apt-get install -y ./cinq_*.deb
             remove: apt-get remove -y cinq
-          - image: ubuntu:22.04 # Minimal image, which leaves out manual pages
+          - image: ubuntu:20.04 # Minimal image, which leaves out manual pages, with glibc 2.31
+            install: rm /etc/dpkg/dpkg.cfg.d/excludes && apt-get update && apt-get install -y ./cinq_*.deb
+            remove: apt-get remove -y cinq
+          - image: ubuntu:22.04
             install: rm /etc/dpkg/dpkg.cfg.d/excludes && apt-get update && apt-get install -y ./cinq_*.deb
             remove: apt-get remove -y cinq
           - image: ubuntu:24.04
@@ -85,11 +88,11 @@ jobs:
       matrix:
         include:
           - image: debian:13
-            install: apt-get update && apt-get install -y ./cinq_*.deb weston fonts-dejavu-core
+            install: apt-get update && apt-get install -y ./cinq_*.deb sway grim fonts-dejavu-core
           - image: fedora:latest
-            install: dnf install -y ./cinq-*.rpm weston dejavu-sans-mono-fonts
+            install: dnf install -y ./cinq-*.rpm sway grim dejavu-sans-mono-fonts
           - image: archlinux:latest
-            install: pacman -Sy --noconfirm weston ttf-dejavu && pacman -U --noconfirm ./cinq-*.pkg.tar.zst
+            install: pacman -Sy --noconfirm sway grim ttf-dejavu && pacman -U --noconfirm ./cinq-*.pkg.tar.zst
     runs-on: ubuntu-latest
     container: ${{ matrix.image }}
     steps:
@@ -98,22 +101,24 @@ jobs:
           name: packages
       - run: ${{ matrix.install }}
       - run: |
-          export XDG_RUNTIME_DIR=$(mktemp -d)
-          weston --version
-          weston --backend=headless --socket=cinq --debug > weston.log 2>&1 &
+          export XDG_RUNTIME_DIR=$(mktemp -d) WLR_BACKENDS=headless WLR_RENDERER=pixman WLR_LIBINPUT_NO_DEVICES=1
+          sway --version
+          sway -c /dev/null > sway.log 2>&1 &
           sleep 5
-          WAYLAND_DISPLAY=cinq timeout -k 5 20 cinq > cinq.log 2>&1 &
+          export WAYLAND_DISPLAY=$(ls "$XDG_RUNTIME_DIR" | grep -v lock | grep wayland | head -1)
+          echo "display $WAYLAND_DISPLAY"
+          timeout -k 5 20 cinq > cinq.log 2>&1 &
           cinq=$!
           sleep 12
-          WAYLAND_DISPLAY=cinq timeout -k 5 10 weston-screenshooter || echo "no screenshot"
+          timeout -k 5 10 grim window.png || echo "no screenshot"
           status=0
           wait $cinq || status=$?
           echo "--- cinq"; cat cinq.log
-          echo "--- weston"; tail -20 weston.log
+          echo "--- sway"; tail -20 sway.log
           test "$status" = 124 # Still running when timeout ended it
       - if: always()
         uses: actions/upload-artifact@main
         with:
           name: window-${{ strategy.job-index }}
-          path: wayland-screenshot*.png
+          path: window.png
           if-no-files-found: ignore

@@ -71,6 +71,8 @@ fn opening_again_the_show_on_screen_brings_back_its_changes_on_screen() {
     let app = renamed(storm(), "Newer").opened(found(Some(STORM), Some(SHOW), Some(&older)));
     let name = app.workspace.cue(CueId(1)).map(|cue| cue.name.clone());
     assert_eq!(name.as_deref(), Some("Newer"));
+    // Nothing to tell of changes that stay on screen
+    assert_eq!(app.told, None);
     assert!(!app.send(Command::Undo).show.unsaved());
 }
 
@@ -113,6 +115,14 @@ fn opening_another_show_tells_where_the_unsaved_changes_went() {
         Some(&kept),
     ));
     assert_eq!(app.told.as_deref(), Some(told));
+    // Without the key for a new show, whose changes only starting cinq
+    // without a show brings back
+    let untitled = App::default().opened(found(None, None, Some(SHOW)));
+    let app = untitled.opened(found(Some("/shows/calm.cinq.toml"), Some(SHOW), None));
+    assert_eq!(
+        app.told.as_deref(),
+        Some("Kept the unsaved changes to untitled")
+    );
 }
 
 #[test]
@@ -209,6 +219,12 @@ fn kept_changes_move_along_with_their_show() {
     keeper.writer.settled();
     assert!(!kept.exists());
     assert!(kept_file(directory.path(), Some(&moved)).exists());
+}
+
+#[test]
+fn show_named_through_a_parent_directory_keeps_its_changes_as_by_its_plain_path() {
+    let kept = |file: &str| kept_file(Path::new("/unsaved"), Some(Path::new(file)));
+    assert_eq!(kept("/shows/old/../storm.cinq.toml"), kept(STORM));
 }
 
 #[test]

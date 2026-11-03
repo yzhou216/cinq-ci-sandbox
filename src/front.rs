@@ -135,7 +135,7 @@ struct App {
     help: bool,
     /// Why the link that the help page opened last failed to open, which
     /// the page shows while it stays open
-    unopened: Option<String>,
+    link_problem: Option<String>,
     /// Whether the files of audio cues are being loaded
     loading: bool,
     /// Whether the files that could not be played are being read again

@@ -36,8 +36,8 @@
         let
           inherit (pkgs.stdenvNoCC.hostPlatform) isDarwin isFreeBSD isLinux;
           crate = (lib.importTOML ./Cargo.toml).package;
-          # Date of the latest commit, which the manual pages give rather
-          # than the fixed date that builds take otherwise
+          # Date of the latest commit, which the manual pages and packages
+          # give rather than the fixed date that builds take otherwise
           sourceDateEpoch = toString inputs.self.lastModified;
           # Rustfmt with the unstable settings of rustfmt.toml turned on
           rustfmt = pkgs.rustfmt.override { asNightly = true; };
@@ -104,11 +104,18 @@
             pkgs.runCommand "${crate.name}-${packager}"
               {
                 nativeBuildInputs = [ pkgs.nfpm ];
-                nfpmConfig = builtins.toJSON {
-                  inherit (crate) name version description;
+                env.SOURCE_DATE_EPOCH = sourceDateEpoch;
+                nfpmConfig = builtins.toJSON rec {
+                  inherit (crate)
+                    name
+                    version
+                    description
+                    license
+                    ;
                   arch = pkgs.stdenv.hostPlatform.go.GOARCH;
                   maintainer = "Yiyu Zhou <yiyu@yiyuzhou.io>";
-                  license = "GPL-3.0-or-later";
+                  section = "sound";
+                  archlinux.packager = maintainer;
                   # Files alone, leaving their directories to the system
                   contents = [
                     {

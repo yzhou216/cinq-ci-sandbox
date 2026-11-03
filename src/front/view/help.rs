@@ -118,7 +118,7 @@ pub(super) fn view(app: &App) -> Element<'_, Message> {
         source,
         key_values,
     ]
-    .extend(app.unopened.as_deref().map(|why| text(why).into()))
+    .extend(app.link_problem.as_deref().map(|why| text(why).into()))
     .extend(notice)
     .push(button("Close").on_press(Message::CloseHelp))
     .spacing(SPACING);

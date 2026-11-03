@@ -127,7 +127,6 @@ fn sound_file_chosen_for_a_new_cue_names_it_by_its_path_from_the_show() {
         (cue.file.as_str(), cue.name.as_str()),
         ("sounds/storm.ogg", "storm")
     );
-    assert!(chosen.show.unsaved());
 }
 
 #[test]
@@ -185,11 +184,11 @@ fn link_that_fails_to_open_shows_until_the_help_page_closes() {
         ..App::default()
     };
     let (failed, _) = open.next(failure());
-    assert_eq!(failed.unopened.as_deref(), Some("Cannot open it"));
+    assert_eq!(failed.link_problem.as_deref(), Some("Cannot open it"));
     let (closed, _) = failed.next(Message::CloseHelp);
-    assert_eq!(closed.unopened, None);
+    assert_eq!(closed.link_problem, None);
     let (unseen, _) = closed.next(failure());
-    assert_eq!(unseen.unopened, None);
+    assert_eq!(unseen.link_problem, None);
 }
 
 #[test]

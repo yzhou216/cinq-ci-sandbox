@@ -134,7 +134,7 @@ impl App {
     ) -> (Self, Task<Message>) {
         let task = on_own_thread(open).map(Message::LinkOpened);
         let app = Self {
-            unopened: None,
+            link_problem: None,
             ..self
         };
         (app, task)
@@ -200,16 +200,13 @@ impl App {
                 }
             }
             // Nothing without a selected cue, as the toolbar's button does
-            Message::StandbySelected => match self.selected_here() {
-                Some(cue) => {
-                    let standby = Command::Standby {
-                        list: self.list,
-                        cue: Some(cue),
-                    };
-                    self.send(standby)
-                }
-                None => self,
-            },
+            Message::StandbySelected => {
+                let standby = self.selected_here().map(|cue| Command::Standby {
+                    list: self.list,
+                    cue: Some(cue),
+                });
+                self.send_all(standby)
+            }
             Message::ShowMode(show_mode) => self.send(Command::ShowMode(show_mode)),
             Message::Loaded(show, found) => self.loaded(show, found),
             Message::Rechecked(show, found) => self.rechecked(show, found),
@@ -218,28 +215,26 @@ impl App {
             // drops them, as it does for most messages
             Message::Reconfigured(config) => Self { config, ..self },
             Message::LinkOpened(result) => Self {
-                unopened: result.err(),
+                link_problem: result.err(),
                 ..self
             },
             Message::Clicked => self,
             Message::Edit(id, edit) => self.send(Command::Edit(id, edit)),
             Message::LevelTyped(cue, text) => {
-                let level = parse_level(&text);
-                let typing = Self {
+                let edit = parse_level(&text).map(|level| Command::Edit(cue, Edit::Level(level)));
+                Self {
                     typed_level: Some((cue, text)),
                     ..self
-                };
-                match level {
-                    Some(level) => typing.send(Command::Edit(cue, Edit::Level(level))),
-                    None => typing,
                 }
+                .send_all(edit)
             }
             Message::SoundChosen(id, path) => {
                 let file = self.workspace.file_name_of(&path);
-                match self.workspace.cue(id).map(|cue| cue.playing(file)) {
-                    Some(edit) => self.send(Command::Edit(id, edit)),
-                    None => self,
-                }
+                let edit = self
+                    .workspace
+                    .cue(id)
+                    .map(|cue| Command::Edit(id, cue.playing(file)));
+                self.send_all(edit)
             }
             Message::ToggleHelp => Self {
                 help: !self.help,
@@ -274,6 +269,12 @@ impl App {
         if changes { app.with_text() } else { app }
     }
 
+    /// Hands each of `commands` to the back end in turn, as [`App::send`]
+    /// does
+    fn send_all(self, commands: impl IntoIterator<Item = Command>) -> Self {
+        commands.into_iter().fold(self, Self::send)
+    }
+
     /// Returns the state after one message, with the widget operations it
     /// asks for.  Anything the operator does other than typing drops a
     /// command typed halfway, so that a stray `d` cannot wait through a
@@ -302,16 +303,12 @@ impl App {
             ..self
         };
         let (app, task) = app.handled(message);
-        let last_tick = app.last_tick.filter(|_| app.running());
-        let unopened = app.unopened.filter(|_| app.help);
-        (
-            Self {
-                last_tick,
-                unopened,
-                ..app
-            },
-            task,
-        )
+        let app = Self {
+            last_tick: app.last_tick.filter(|_| app.running()),
+            link_problem: app.link_problem.filter(|_| app.help),
+            ..app
+        };
+        (app, task)
     }
 }
 

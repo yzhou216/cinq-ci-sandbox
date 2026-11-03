@@ -258,16 +258,20 @@ impl App {
         };
         let base = read.file.as_deref().and_then(Path::parent);
         let saved = workspace.show(base);
-        let kept = if self.show.unsaved() && read.file == self.show.file {
+        let again = read.file == self.show.file;
+        let kept = if self.show.unsaved() && again {
             Ok(Some(self.show.text.clone()))
         } else {
             read.kept
         };
         // Show that goes keeps its unsaved changes, which opening it again
-        // brings back
-        let told = self.show.unsaved().then(|| {
+        // brings back, as starting cinq without a show does for a new show
+        let told = (self.show.unsaved() && !again).then(|| {
             let kept = format!("Kept the unsaved changes to {}", self.show.name());
-            answered(kept, &self.config.keymap, Action::Open)
+            match self.show.file {
+                Some(_) => answered(kept, &self.config.keymap, Action::Open),
+                None => kept,
+            }
         });
         let opened = Self {
             workspace,
@@ -300,15 +304,7 @@ impl App {
         };
         // Selection and message once the kept changes are back, since
         // bringing them back replaces the cues and clears what was told
-        Self {
-            selected: opened
-                .workspace
-                .lists()
-                .first()
-                .and_then(|cues| cues.standby),
-            told,
-            ..opened
-        }
+        Self { told, ..opened }.switched_to(0)
     }
 
     /// Returns the state with the show as its file would hold it brought up
@@ -393,7 +389,7 @@ impl Keeper {
         }
         self.kept = wanted.map(|wanted| (show.id, wanted));
         failed.or_else(|| {
-            (self.kept.is_none() && show.unsaved())
+            (self.unsaved_directory.is_none() && show.unsaved())
                 .then(|| "Cannot keep the unsaved changes: there is no state directory".to_owned())
         })
     }
@@ -559,17 +555,18 @@ fn with_extension(file: &Path) -> PathBuf {
 
 /// Returns the file in `unsaved_directory` that keeps the unsaved changes
 /// of the show in `file`, or of a new show without one: by the path of the
-/// show's file under `shows`, or as `untitled.cinq.toml` for a new show
+/// show's file under `shows`, in which `..` takes away the directory before
+/// it, or as `untitled.cinq.toml` for a new show
 fn kept_file(unsaved_directory: &Path, file: Option<&Path>) -> PathBuf {
     match file {
-        Some(file) => unsaved_directory.join("shows").join(
-            file.components()
-                .filter_map(|component| match component {
-                    Component::Normal(name) => Some(name),
-                    _ => None,
-                })
-                .collect::<PathBuf>(),
-        ),
+        Some(file) => unsaved_directory.join("shows").join(file.components().fold(
+            PathBuf::new(),
+            |path, component| match component {
+                Component::Normal(name) => path.join(name),
+                Component::ParentDir => path.parent().map_or_else(PathBuf::new, Path::to_owned),
+                _ => path,
+            },
+        )),
         None => unsaved_directory.join(format!("untitled.{EXTENSION}")),
     }
 }

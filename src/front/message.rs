@@ -30,12 +30,8 @@ impl Tab {
     /// Returns the tab `offset` places to the right, wrapping around at
     /// either end
     pub fn stepped(self, offset: isize) -> Self {
-        let index = Self::VARIANTS
-            .iter()
-            .position(|&tab| tab == self)
-            .unwrap_or(0);
         let count = Self::VARIANTS.len() as isize;
-        Self::VARIANTS[(index as isize + offset).rem_euclid(count) as usize]
+        Self::VARIANTS[(self as isize + offset).rem_euclid(count) as usize]
     }
 }
 

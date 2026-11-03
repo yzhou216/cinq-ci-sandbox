@@ -57,10 +57,8 @@ impl App {
     /// Moves the selected cue by a number of places in its list, downwards
     /// when positive, which the selection follows
     pub(super) fn with_selected_moved(self, by: isize) -> Self {
-        match self.selected_here() {
-            Some(cue) => self.send(Command::Move { cue, by }),
-            None => self,
-        }
+        let moved = self.selected_here().map(|cue| Command::Move { cue, by });
+        self.send_all(moved)
     }
 
     /// Deletes a number of cues from the selection down, as one change that

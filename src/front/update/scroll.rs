@@ -27,21 +27,17 @@ use crate::front::{App, Message, reveal, view};
 const MARGIN_ROWS: f32 = 3.0;
 
 impl App {
-    /// Returns the state along with the operation that scrolls the selected
-    /// cue into view
+    /// Returns the state along with the operation that scrolls the cue list
+    /// as little as it takes to show the selected cue.  The first cue snaps
+    /// the list back to its start, as the window opened it, since the row
+    /// itself begins a separator below the start.
     pub(super) fn revealed(self) -> (Self, Task<Message>) {
-        self.with_task(Self::reveal)
-    }
-
-    /// Scrolls the cue list as little as it takes to show the selected cue.
-    /// The first cue snaps the list back to its start, as the window opened
-    /// it, since the row itself begins a separator below the start.
-    fn reveal(&self) -> Task<Message> {
-        match self.selected_row() {
+        let task = match self.selected_row() {
             Some(0) => operation::snap_to(view::CUES, RelativeOffset::START),
             Some(_) => operate(Measure::default()).discard(),
             None => Task::none(),
-        }
+        };
+        (self, task)
     }
 }
 
