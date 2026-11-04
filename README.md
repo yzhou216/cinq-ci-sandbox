@@ -65,8 +65,8 @@ Builds for Darwin also lay out the app bundle, `cinq.app`, in
 `target/Applications`, with all but the program, which goes into its
 `Contents/MacOS`.  On GNU/Linux, `nix build .#aarch64-darwin-cross`
 cross-builds the package for Apple silicon, and `.#deb`, `.#rpm`, and
-`.#archlinux` build packages for other distributions with glibc 2.31 or
-newer.
+`.#archlinux` build packages for other distributions, which need a glibc
+as new as that of Nixpkgs.
 
 ## Configuration
 

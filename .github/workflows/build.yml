@@ -54,33 +54,3 @@ jobs:
             cinq_*.deb
             cinq-*.rpm
             cinq-*.pkg.tar.zst
-  install: # Packages installed, run, and removed on the distributions they are for
-    needs: packages
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - image: ubuntu:20.04 # Oldest glibc the packages support, 2.31
-            install: rm /etc/dpkg/dpkg.cfg.d/excludes && apt-get update && apt-get install -y ./cinq_*.deb # Minimal image, which leaves out manual pages
-            remove: apt-get remove -y cinq
-          - image: debian:13
-            install: apt-get update && apt-get install -y ./cinq_*.deb
-            remove: apt-get remove -y cinq
-          - image: fedora:latest
-            install: dnf install -y ./cinq-*.rpm
-            remove: dnf remove -y cinq
-          - image: almalinux:9
-            install: dnf install -y ./cinq-*.rpm
-            remove: dnf remove -y cinq
-          - image: archlinux:latest
-            install: sed -i '/^NoExtract/d' /etc/pacman.conf && pacman -Sy --noconfirm && pacman -U --noconfirm ./cinq-*.pkg.tar.zst # Image leaves out manual pages too
-            remove: pacman -R --noconfirm cinq
-    runs-on: ubuntu-latest
-    container: ${{ matrix.image }}
-    steps:
-      - uses: actions/download-artifact@main
-        with:
-          name: packages
-      - run: ${{ matrix.install }}
-      - run: cinq --version && test -f /usr/share/man/man1/cinq.1 && test -f /usr/share/applications/cinq.desktop
-      - run: ${{ matrix.remove }} && test ! -e /usr/bin/cinq

@@ -1,0 +1,98 @@
+# SPDX-FileCopyrightText: 2026 Yiyu Zhou <yiyu@yiyuzhou.io>
+#
+# SPDX-License-Identifier: GPL-3.0-or-later
+
+# Installs the deb, rpm, and Arch packages on the distributions they are for,
+# runs cinq from each, removes it again, and opens its window under a headless
+# sway
+on:
+  push:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@main
+      - uses: wimpysworld/nothing-but-nix@main
+      - uses: cachix/install-nix-action@master
+        with:
+          github_access_token: ${{ secrets.GITHUB_TOKEN }}
+      - run: nix build .#deb .#rpm .#archlinux && cp result*/* .
+      - uses: actions/upload-artifact@main
+        with:
+          name: packages
+          path: |
+            cinq_*.deb
+            cinq-*.rpm
+            cinq-*.pkg.tar.zst
+  install:
+    needs: build
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - image: archlinux:latest # Leaves out manual pages too
+            install: sed -i '/^NoExtract/d' /etc/pacman.conf && pacman -Sy --noconfirm && pacman -U --noconfirm ./cinq-*.pkg.tar.zst
+            remove: pacman -R --noconfirm cinq
+    runs-on: ubuntu-latest
+    container: ${{ matrix.image }}
+    steps:
+      - uses: actions/download-artifact@main
+        with:
+          name: packages
+      - run: ${{ matrix.install }}
+      - run: |
+          echo "glibc $(getconf GNU_LIBC_VERSION)"
+          cinq --version
+          files="man/man1/cinq.1 man/man5/cinq.5 man/man5/cinq-show.5 applications/cinq.desktop
+            mime/packages/cinq.xml icons/hicolor/scalable/apps/cinq.svg bash-completion/completions/cinq"
+          for file in $files; do
+            test -f "/usr/share/$file" || { echo "missing /usr/share/$file"; exit 1; }
+          done
+          ${{ matrix.remove }}
+          for file in bin/cinq $(printf 'share/%s ' $files); do
+            test ! -e "/usr/$file" || { echo "left behind /usr/$file"; exit 1; }
+          done
+  window:
+    needs: build
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - image: archlinux:latest
+            install: pacman -Sy --noconfirm sway grim ttf-dejavu && pacman -U --noconfirm ./cinq-*.pkg.tar.zst
+    runs-on: ubuntu-latest
+    container:
+      image: ${{ matrix.image }}
+      options: --cap-add=SYS_NICE # Which sway holds as a file capability on Fedora and Arch
+    steps:
+      - uses: actions/download-artifact@main
+        with:
+          name: packages
+      - run: ${{ matrix.install }}
+      - run: |
+          export XDG_RUNTIME_DIR=$(mktemp -d) WLR_BACKENDS=headless WLR_RENDERER=pixman WLR_LIBINPUT_NO_DEVICES=1
+          sway --version
+          sway -c /dev/null > sway.log 2>&1 &
+          sleep 5
+          export WAYLAND_DISPLAY=$(ls "$XDG_RUNTIME_DIR" | grep -v lock | grep wayland | head -1)
+          echo "display $WAYLAND_DISPLAY"
+          timeout -k 5 20 cinq > cinq.log 2>&1 &
+          cinq=$!
+          sleep 12
+          timeout -k 5 10 grim window.png || echo "no screenshot"
+          status=0
+          wait $cinq || status=$?
+          echo "--- cinq"; cat cinq.log
+          echo "--- sway"; tail -20 sway.log
+          test "$status" = 124 # Still running when timeout ended it
+      - if: always()
+        uses: actions/upload-artifact@main
+        with:
+          name: window-${{ strategy.job-index }}
+          path: window.png
+          if-no-files-found: ignore

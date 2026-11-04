@@ -54,48 +54,23 @@
             mv "$out/bin/cinq" "$out/Applications/cinq.app/Contents/MacOS"
             ln -s ../Applications/cinq.app/Contents/MacOS/cinq "$out/bin"
           '';
+          # glibc of Nixpkgs, which cinq links against, so that other
+          # distributions need this one or a newer one
+          glibc = lib.versions.majorMinor pkgs.glibc.version;
           # cinq for other distributions of GNU/Linux, laid out under usr,
-          # which zig links against glibc 2.31 so that it runs with that glibc
-          # and every newer one
+          # which loads the system's loader and libraries rather than those
+          # of the Nix store
           portable =
             let
-              target = pkgs.stdenv.hostPlatform.rust.rustcTarget;
+              directory = if pkgs.stdenv.hostPlatform.isx86_64 then "lib64" else "lib";
+              loader = "/${directory}/${baseNameOf pkgs.stdenv.cc.bintools.dynamicLinker}";
             in
-            pkgs.stdenv.mkDerivation {
-              pname = "${crate.name}-portable";
-              inherit (crate) version;
-              inherit (config.packages.cinq) src cargoDeps;
-
-              nativeBuildInputs = with pkgs; [
-                cargo
-                cargo-zigbuild
-                pkg-config
-                rustPlatform.cargoSetupHook
-                rustc
-                scdoc
-              ];
-              buildInputs = [ pkgs.alsa-lib ];
-
-              env = {
-                # Linked against the libasound of Nixpkgs, which needs a newer
-                # glibc, though each distribution loads its own
-                RUSTFLAGS = "-C link-arg=-Wl,--allow-shlib-undefined";
-                SOURCE_DATE_EPOCH = sourceDateEpoch;
-              };
-
-              buildPhase = ''
-                runHook preBuild
-                HOME=$TMPDIR cargo zigbuild --frozen --release --target ${target}.2.31
-                runHook postBuild
-              '';
-
-              installPhase = ''
-                runHook preInstall
-                install -D target/${target}/release/cinq "$out/usr/bin/cinq"
-                cp -r target/share "$out/usr"
-                runHook postInstall
-              '';
-            };
+            pkgs.runCommand "${crate.name}-portable" { nativeBuildInputs = [ pkgs.patchelf ]; } ''
+              mkdir -p "$out/usr"
+              cp -r ${config.packages.cinq}/{bin,share} "$out/usr"
+              chmod -R u+w "$out/usr"
+              patchelf --set-interpreter ${loader} --remove-rpath "$out/usr/bin/cinq"
+            '';
           # Package of portable cinq in the format of nfpm's `packager`, which
           # depends on glibc, ALSA, and the libraries that cinq loads, apart
           # from those of the GPU, without which it draws in software
@@ -125,14 +100,14 @@
                   ];
                   overrides = {
                     deb.depends = [
-                      "libc6 (>= 2.31)"
+                      "libc6 (>= ${glibc})"
                       "libasound2t64 | libasound2"
                       "libdbus-1-3"
                       "libwayland-client0"
                       "libxkbcommon0"
                     ];
                     rpm.depends = [
-                      "glibc >= 2.31"
+                      "glibc >= ${glibc}"
                       "alsa-lib"
                       "dbus-libs"
                       "libwayland-client"
