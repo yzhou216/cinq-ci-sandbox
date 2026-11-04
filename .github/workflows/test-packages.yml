@@ -34,7 +34,7 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - image: debian:testing
+          - image: debian:sid
             install: apt-get update && apt-get install -y ./cinq_*.deb
             remove: apt-get remove -y cinq
           - image: fedora:latest
@@ -70,7 +70,7 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - image: debian:testing
+          - image: debian:sid
             install: apt-get update && apt-get install -y ./cinq_*.deb sway grim fonts-dejavu-core
           - image: fedora:latest
             install: dnf install -y ./cinq-*.rpm sway grim dejavu-sans-mono-fonts
