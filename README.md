@@ -64,9 +64,10 @@ then run `update-mime-database` with its `share/mime` directory.
 Builds for Darwin also lay out the app bundle, `cinq.app`, in
 `target/Applications`, with all but the program, which goes into its
 `Contents/MacOS`.  On GNU/Linux, `nix build .#aarch64-darwin-cross`
-cross-builds the package for Apple silicon, and `.#deb`, `.#rpm`, and
-`.#archlinux` build packages for other distributions, which need a glibc
-as new as that of Nixpkgs.
+cross-builds the package for Apple silicon, `.#x86_64-windows-cross` and
+`.#aarch64-windows-cross` build `cinq.exe` for Windows 10 and newer, and
+`.#deb`, `.#rpm`, and `.#archlinux` build packages for other
+distributions, which need a glibc as new as that of Nixpkgs.
 
 ## Configuration
 

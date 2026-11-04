@@ -31,7 +31,7 @@ jobs:
         with:
           path: cinq-${{ matrix.system }}.tar
           archive: false
-  packages: # Built on Ubuntu for Darwin and other distributions of GNU/Linux
+  packages: # Built on Ubuntu for Darwin, Windows, and other distributions of GNU/Linux
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@main
@@ -43,6 +43,9 @@ jobs:
           nix build .#aarch64-darwin-cross .#deb .#rpm .#archlinux
           tar -cf cinq-aarch64-darwin-cross.tar -C result .
           cp result-*/* .
+          nix build .#x86_64-windows-cross .#aarch64-windows-cross
+          cp result/bin/cinq.exe cinq-x86_64-windows.exe
+          cp result-1/bin/cinq.exe cinq-aarch64-windows.exe
       - uses: actions/upload-artifact@main
         with:
           path: cinq-aarch64-darwin-cross.tar
@@ -54,3 +57,11 @@ jobs:
             cinq_*.deb
             cinq-*.rpm
             cinq-*.pkg.tar.zst
+      - uses: actions/upload-artifact@main
+        with:
+          path: cinq-x86_64-windows.exe
+          archive: false
+      - uses: actions/upload-artifact@main
+        with:
+          path: cinq-aarch64-windows.exe
+          archive: false

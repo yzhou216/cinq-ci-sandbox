@@ -42,11 +42,72 @@
           # Rustfmt with the unstable settings of rustfmt.toml turned on
           rustfmt = pkgs.rustfmt.override { asNightly = true; };
           # Rust's own toolchain of the release that Nixpkgs builds rustc
-          # from, with the standard library for Apple silicon, which Nixpkgs
-          # cannot build on GNU/Linux
+          # from, with the standard libraries for Apple silicon and Windows,
+          # which Nixpkgs cannot build on GNU/Linux
           rust = (inputs.rust-overlay.lib.mkRustBin { } pkgs).stable.${pkgs.rustc.version}.minimal.override {
-            targets = [ "aarch64-apple-darwin" ];
+            targets = [
+              "aarch64-apple-darwin"
+              "aarch64-pc-windows-gnullvm"
+              "x86_64-pc-windows-gnullvm"
+            ];
           };
+          # cinq that cargo cross-builds for the Rust target `target` with the
+          # variables of `env`, and that `install` lays out from the directory
+          # that the build leaves the program in
+          crossBuilt =
+            {
+              target,
+              env,
+              install,
+            }:
+            pkgs.stdenv.mkDerivation {
+              pname = "${crate.name}-${target}";
+              inherit (crate) version;
+              inherit (config.packages.cinq) src cargoDeps;
+
+              nativeBuildInputs = [
+                rust
+              ]
+              ++ (with pkgs; [
+                rustPlatform.cargoSetupHook
+                scdoc
+              ]);
+
+              env = env // {
+                SOURCE_DATE_EPOCH = sourceDateEpoch;
+              };
+
+              buildPhase = ''
+                runHook preBuild
+                cargo build --frozen --release --target ${target}
+                runHook postBuild
+              '';
+
+              installPhase = ''
+                runHook preInstall
+                ${install "target/${target}/release"}
+                runHook postInstall
+              '';
+            };
+          # cinq for Windows 10 and newer on the processor of `cross`, the
+          # Nixpkgs of a MinGW system, whose LLVM links it.  The C runtime
+          # and the unwinder go into the program, so that it needs no DLL
+          # that Windows lacks.
+          windows =
+            cross:
+            let
+              inherit (cross.stdenv) cc hostPlatform;
+              target = hostPlatform.rust.rustcTarget;
+              variable = "CARGO_TARGET_${lib.toUpper (builtins.replaceStrings [ "-" ] [ "_" ] target)}";
+            in
+            crossBuilt {
+              inherit target;
+              env = {
+                "${variable}_LINKER" = "${cc}/bin/${cc.targetPrefix}cc";
+                "${variable}_RUSTFLAGS" = "-C target-feature=+crt-static";
+              };
+              install = release: ''install -D ${release}/cinq.exe "$out/bin/cinq.exe"'';
+            };
           # Moves the program into the app bundle that builds for Darwin lay
           # out, and links it back from bin
           installBundle = ''
@@ -203,39 +264,20 @@
             # cinq for Apple silicon, laid out as the package for Darwin is,
             # which cargo cross-builds against the SDK that Nixpkgs fetches
             # from Apple, linked by lld from the toolchain
-            aarch64-darwin-cross = pkgs.stdenv.mkDerivation {
-              pname = "${crate.name}-aarch64-darwin";
-              inherit (crate) version;
-              inherit (config.packages.cinq) src cargoDeps;
-
-              nativeBuildInputs = [
-                rust
-              ]
-              ++ (with pkgs; [
-                rustPlatform.cargoSetupHook
-                scdoc
-              ]);
-
+            aarch64-darwin-cross = crossBuilt {
+              target = "aarch64-apple-darwin";
               env = {
                 SDKROOT = "${pkgs.apple-sdk.src}";
                 CARGO_TARGET_AARCH64_APPLE_DARWIN_LINKER = "rust-lld";
-                SOURCE_DATE_EPOCH = sourceDateEpoch;
               };
-
-              buildPhase = ''
-                runHook preBuild
-                cargo build --frozen --release --target aarch64-apple-darwin
-                runHook postBuild
-              '';
-
-              installPhase = ''
-                runHook preInstall
-                install -D target/aarch64-apple-darwin/release/cinq "$out/bin/cinq"
+              install = release: ''
+                install -D ${release}/cinq "$out/bin/cinq"
                 cp -r target/share "$out"
                 ${installBundle}
-                runHook postInstall
               '';
             };
+            x86_64-windows-cross = windows pkgs.pkgsCross.mingw-ucrt-x86_64-llvm;
+            aarch64-windows-cross = windows pkgs.pkgsCross.mingw-ucrt-aarch64;
 
             deb = nfpm "deb";
             rpm = nfpm "rpm";

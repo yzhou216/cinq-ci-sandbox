@@ -1,0 +1,68 @@
+# SPDX-FileCopyrightText: 2026 Yiyu Zhou <yiyu@yiyuzhou.io>
+#
+# SPDX-License-Identifier: GPL-3.0-or-later
+
+# Cross-builds cinq for Windows on Ubuntu, then runs it on Windows on x64
+# and on Arm, and screenshots its window
+on:
+  push:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  cross:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@main
+      - uses: wimpysworld/nothing-but-nix@main
+      - uses: cachix/install-nix-action@master
+        with:
+          github_access_token: ${{ secrets.GITHUB_TOKEN }}
+      - run: |
+          nix build .#x86_64-windows-cross .#aarch64-windows-cross
+          mkdir x86_64 aarch64
+          cp result/bin/cinq.exe x86_64/
+          cp result-1/bin/cinq.exe aarch64/
+      - uses: actions/upload-artifact@main
+        with:
+          name: x86_64
+          path: x86_64/cinq.exe
+      - uses: actions/upload-artifact@main
+        with:
+          name: aarch64
+          path: aarch64/cinq.exe
+  try:
+    needs: cross
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            arch: x86_64
+          - os: windows-11-arm
+            arch: aarch64
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/download-artifact@main
+        with:
+          name: ${{ matrix.arch }}
+      - shell: pwsh
+        run: |
+          $env:PROCESSOR_ARCHITECTURE
+          ./cinq.exe --version
+          $cinq = Start-Process ./cinq.exe -PassThru
+          Start-Sleep 15
+          Add-Type -AssemblyName System.Windows.Forms, System.Drawing
+          $bounds = [System.Windows.Forms.Screen]::PrimaryScreen.Bounds
+          $shot = New-Object System.Drawing.Bitmap $bounds.Width, $bounds.Height
+          [System.Drawing.Graphics]::FromImage($shot).CopyFromScreen($bounds.Location, [System.Drawing.Point]::Empty, $bounds.Size)
+          $shot.Save("$pwd\screen.png")
+          if ($cinq.HasExited) { "cinq exited with $($cinq.ExitCode)"; exit 1 }
+          Stop-Process $cinq
+      - if: always()
+        uses: actions/upload-artifact@main
+        with:
+          name: screen-${{ matrix.arch }}
+          path: screen.png
+          if-no-files-found: ignore
