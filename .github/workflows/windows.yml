@@ -50,19 +50,35 @@ jobs:
       - shell: pwsh
         run: |
           $env:PROCESSOR_ARCHITECTURE
-          ./cinq.exe --version
+          # Program without a console of its own, whose output goes to a file
+          Start-Process ./cinq.exe -ArgumentList "--version" -Wait -NoNewWindow -RedirectStandardOutput version.txt
+          Get-Content version.txt
           $cinq = Start-Process ./cinq.exe -PassThru
           Start-Sleep 15
-          Add-Type -AssemblyName System.Windows.Forms, System.Drawing
-          $bounds = [System.Windows.Forms.Screen]::PrimaryScreen.Bounds
-          $shot = New-Object System.Drawing.Bitmap $bounds.Width, $bounds.Height
-          [System.Drawing.Graphics]::FromImage($shot).CopyFromScreen($bounds.Location, [System.Drawing.Point]::Empty, $bounds.Size)
-          $shot.Save("$pwd\screen.png")
           if ($cinq.HasExited) { "cinq exited with $($cinq.ExitCode)"; exit 1 }
           $cinq.Refresh()
           "window: $($cinq.MainWindowTitle)"
-          if ($cinq.MainWindowTitle -ne "untitled - cinq") { exit 1 }
+          Add-Type -AssemblyName System.Drawing
+          Add-Type -TypeDefinition @"
+          using System;
+          using System.Runtime.InteropServices;
+          public static class Window {
+            [StructLayout(LayoutKind.Sequential)] public struct Rect { public int Left, Top, Right, Bottom; }
+            [DllImport("user32.dll")] public static extern bool GetWindowRect(IntPtr window, out Rect rect);
+            [DllImport("user32.dll")] public static extern bool PrintWindow(IntPtr window, IntPtr context, uint flags);
+          }
+          "@
+          $rect = New-Object Window+Rect
+          [Window]::GetWindowRect($cinq.MainWindowHandle, [ref]$rect) | Out-Null
+          $shot = New-Object System.Drawing.Bitmap ($rect.Right - $rect.Left), ($rect.Bottom - $rect.Top)
+          $graphics = [System.Drawing.Graphics]::FromImage($shot)
+          $context = $graphics.GetHdc()
+          # Window as it draws itself, even under other windows
+          [Window]::PrintWindow($cinq.MainWindowHandle, $context, 2) | Out-Null
+          $graphics.ReleaseHdc($context)
+          $shot.Save("$pwd\screen.png")
           Stop-Process $cinq
+          if ($cinq.MainWindowTitle -ne "untitled - cinq") { exit 1 }
       - if: always()
         uses: actions/upload-artifact@main
         with:
