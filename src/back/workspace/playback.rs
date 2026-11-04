@@ -107,12 +107,7 @@ impl Workspace {
     /// start fading their target and stop cues stop theirs.  Audio cues need
     /// nothing here, because making sound is the job of the audio output.
     fn started(self) -> Self {
-        let due: Vec<CueId> = self
-            .active
-            .iter()
-            .filter(|active| active.due())
-            .map(|active| active.id)
-            .collect();
+        let due = self.active_where(Active::due);
         let active = self.active.into_iter().map(Active::begun).collect();
         due.into_iter()
             .fold(Self { active, ..self }, Self::with_effect_of)
@@ -148,12 +143,7 @@ impl Workspace {
     /// stops as a stopped cue does, which also cancels the rest of its
     /// chain that it has yet to start.
     fn without_finished(self) -> Self {
-        let faded_out: Vec<CueId> = self
-            .active
-            .iter()
-            .filter(|active| active.faded_out())
-            .map(|active| active.id)
-            .collect();
+        let faded_out = self.active_where(Active::faded_out);
         let workspace = faded_out.into_iter().fold(self, Self::stopped);
         let active = workspace
             .active

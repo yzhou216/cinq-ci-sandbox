@@ -54,7 +54,7 @@ fn main() {
     // that it compiles in, a change to which rebuilds and so reruns it
     SHARED
         .iter()
-        .for_each(|file| println!("cargo::rerun-if-changed={file}"));
+        .for_each(|file| println!("cargo::rerun-if-changed=share/{file}"));
     ["CINQ_SHARE_DIR", "SOURCE_DATE_EPOCH"]
         .iter()
         .for_each(|variable| println!("cargo::rerun-if-env-changed={variable}"));
@@ -83,10 +83,7 @@ fn main() {
 
 /// Files of the package that the share directory of a prefix holds as they
 /// are, each by its path under `share`
-const SHARED: [&str; 2] = [
-    "share/applications/cinq.desktop",
-    "share/mime/packages/cinq.xml",
-];
+const SHARED: [&str; 2] = ["applications/cinq.desktop", "mime/packages/cinq.xml"];
 
 /// Writes `contents` to `file`, along with the directories that it goes in
 fn write(file: &Path, contents: impl AsRef<[u8]>) -> io::Result<()> {
@@ -96,12 +93,9 @@ fn write(file: &Path, contents: impl AsRef<[u8]>) -> io::Result<()> {
 
 /// Copies the [`SHARED`] files to their places under `share`
 fn copy(share: &Path) -> io::Result<()> {
-    SHARED.iter().try_for_each(|file| {
-        let place = Path::new(file)
-            .strip_prefix("share")
-            .expect("shared files are in share");
-        write(&share.join(place), fs::read(file)?)
-    })
+    SHARED
+        .iter()
+        .try_for_each(|file| write(&share.join(file), fs::read(Path::new("share").join(file))?))
 }
 
 /// Writes the completions of the command line for bash, zsh, fish, and

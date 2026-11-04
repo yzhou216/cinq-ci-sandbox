@@ -15,14 +15,6 @@ pub struct Outcome {
     pub action: Option<(Action, Option<usize>)>,
 }
 
-/// How a run of keys relates to the bindings
-enum Found {
-    Action(Action),
-    /// Keys begin a binding but do not complete one
-    Prefix,
-    Nothing,
-}
-
 impl Keymap {
     /// Reads `press` after the keys typed before it.  Digits before a
     /// command count it.  Keys that begin no command are dropped, but a
@@ -44,16 +36,16 @@ impl Keymap {
             })
             .filter(|&count| count > 0);
         match self.find(command) {
-            Found::Action(action) => Outcome {
+            Some(action) => Outcome {
                 pending: Vec::new(),
                 action: Some((action, count)),
             },
-            Found::Prefix => Outcome {
+            None if self.bound().any(|(_, bound)| bound.starts_with(command)) => Outcome {
                 pending: keys,
                 action: None,
             },
-            Found::Nothing if !pending.is_empty() => self.parse(&[], press),
-            Found::Nothing => Outcome::default(),
+            None if !pending.is_empty() => self.parse(&[], press),
+            None => Outcome::default(),
         }
     }
 
@@ -93,10 +85,7 @@ impl Keymap {
     pub fn alone(&self, press: Press) -> Option<Action> {
         self.at_once_bound(press)
             .map(|(action, _)| action)
-            .or_else(|| match self.find(&[press]) {
-                Found::Action(action) => Some(action),
-                Found::Prefix | Found::Nothing => None,
-            })
+            .or_else(|| self.find(&[press]))
     }
 
     /// Returns the action of [`Action::AT_ONCE`] whose key is pressed,
@@ -112,14 +101,10 @@ impl Keymap {
         })
     }
 
-    /// Finds the action bound to `keys`, or whether some binding begins
-    /// with them
-    fn find(&self, keys: &[Press]) -> Found {
-        match self.bound().find(|(_, bound)| bound[..] == *keys) {
-            Some((action, _)) => Found::Action(action),
-            None if self.bound().any(|(_, bound)| bound.starts_with(keys)) => Found::Prefix,
-            None => Found::Nothing,
-        }
+    /// Returns the action bound to `keys`
+    fn find(&self, keys: &[Press]) -> Option<Action> {
+        self.bound()
+            .find_map(|(action, bound)| (bound == keys).then_some(action))
     }
 }
 

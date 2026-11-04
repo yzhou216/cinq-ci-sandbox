@@ -79,8 +79,8 @@ impl Keymap {
 
     /// Returns the keymap with the keys of `action` replaced by `keys`
     fn with(self, action: Action, keys: Vec<Vec<Press>>) -> Self {
-        let mut bindings = self.bindings;
-        bindings.insert(action, keys);
+        // Pair chained last wins over the keys that the action had
+        let bindings = self.bindings.into_iter().chain([(action, keys)]).collect();
         Self { bindings, ..self }
     }
 
@@ -117,31 +117,27 @@ impl Keymap {
     /// actions, which only the first gets, a sequence that begins a longer
     /// one, which can then never be typed, and a key of
     /// [`Action::AT_ONCE`], which keeps every other sequence that holds it
-    /// from being typed
+    /// from being typed, by acting halfway through it or when held with
+    /// other modifiers than it is bound with
     fn conflicts(&self) -> Vec<String> {
         let hidden = self
             .bound()
             .array_combinations()
             .filter_map(|[earlier, later]| conflict(earlier, later));
-        let cut_short = self.bound().filter_map(|(_, keys)| self.cut_short(keys));
+        // Sequence that begins with the very key bound is the binding of the
+        // key itself, or one that `conflict` describes
+        let cut_short = self.bound().filter_map(|(_, keys)| {
+            let (action, key) = keys.iter().find_map(|&press| self.at_once_bound(press))?;
+            (keys[0] != key).then(|| {
+                format!(
+                    "`{}` acts at once as {}, so `{}` can never be typed",
+                    written(&[key]),
+                    action.name(),
+                    written(keys)
+                )
+            })
+        });
         hidden.chain(cut_short).collect()
-    }
-
-    /// Describes how a key of [`Action::AT_ONCE`] keeps `keys` from being
-    /// typed, if one does, by acting halfway through them or when held with
-    /// other modifiers than it is bound with.  Keys that begin with the
-    /// very key bound are the binding of the key itself, or one that
-    /// [`conflict`] describes.
-    fn cut_short(&self, keys: &[Press]) -> Option<String> {
-        let (action, key) = keys.iter().find_map(|&press| self.at_once_bound(press))?;
-        (keys[0] != key).then(|| {
-            format!(
-                "`{}` acts at once as {}, so `{}` can never be typed",
-                written(&[key]),
-                action.name(),
-                written(keys)
-            )
-        })
     }
 
     /// Returns every binding, in the order of [`Action::VARIANTS`]
@@ -158,13 +154,17 @@ impl Keymap {
 type Binding<'a> = (Action, &'a [Press]);
 
 /// Reads the keys of a binding, written as the configuration file writes
-/// them.  A binding cannot start with a digit, since digits typed first
-/// count the command.
+/// them.  A binding needs at least one key, and cannot start with a digit,
+/// since digits typed first count the command.
 fn binding(text: &str) -> Result<Vec<Press>, String> {
-    press::sequence(text).and_then(|keys| match keys.first().and_then(|key| key.digit()) {
-        Some(_) => Err(format!("`{text}` starts with a digit, which counts")),
-        None => Ok(keys),
-    })
+    let keys = press::sequence(text)?;
+    match keys.first() {
+        None => Err("a binding needs at least one key".to_owned()),
+        Some(key) if key.digit().is_some() => {
+            Err(format!("`{text}` starts with a digit, which counts"))
+        }
+        Some(_) => Ok(keys),
+    }
 }
 
 /// Describes how one of two bindings, in the order of [`Action::VARIANTS`],

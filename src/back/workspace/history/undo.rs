@@ -114,14 +114,12 @@ impl Workspace {
     /// Moves the standby of a list as `standby` describes, unless something
     /// has moved it since
     fn with_standby_moved(self, standby: Standby) -> Self {
-        let unmoved = self
-            .lists
-            .get(standby.list)
-            .is_some_and(|cues| cues.standby == standby.before);
-        if unmoved {
-            self.with_standby(standby.list, standby.after)
-        } else {
-            self
-        }
+        self.with_list(standby.list, |cues| {
+            if cues.standby == standby.before {
+                cues.with_standby(standby.after)
+            } else {
+                cues
+            }
+        })
     }
 }

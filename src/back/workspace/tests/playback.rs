@@ -18,22 +18,18 @@ fn go_fires_the_chain_and_moves_standby_past_it() {
 }
 
 #[test]
-fn fade_moves_the_level_in_a_straight_line_and_stops_its_target() {
+fn fade_moves_the_level_in_a_straight_line_and_stops_its_target_unless_stopped() {
     let workspace = workspace(vec![continuing(1), fade_out(2)])
         .apply(GO)
         .apply(Command::Tick(1.0));
     assert!((level(&workspace, 1).unwrap() - SILENCE / 4.0).abs() < 1e-4);
-    assert!(workspace.apply(Command::Tick(3.0)).active().is_empty());
-}
-
-#[test]
-fn stopping_a_fade_cue_leaves_its_target_at_the_level_reached() {
-    let workspace = workspace(vec![continuing(1), fade_out(2)])
-        .apply(GO)
-        .apply(Command::Tick(1.0))
+    // Stopping the fade cue leaves its target at the level reached
+    let stopped = workspace
+        .clone()
         .apply(Command::Stop(CueId(2)))
         .apply(Command::Tick(5.0));
-    assert!((level(&workspace, 1).unwrap() - SILENCE / 4.0).abs() < 1e-4);
+    assert!((level(&stopped, 1).unwrap() - SILENCE / 4.0).abs() < 1e-4);
+    assert!(workspace.apply(Command::Tick(3.0)).active().is_empty());
 }
 
 #[test]
@@ -73,21 +69,17 @@ fn go_skips_broken_cues_in_the_chain() {
 }
 
 #[test]
-fn stopping_a_cue_cancels_the_rest_of_its_chain_that_it_has_yet_to_start() {
-    let workspace = workspace(vec![continuing_after(1, 2.0), audio(2)])
-        .apply(GO)
-        .apply(Command::Tick(1.0))
-        .apply(Command::Stop(CueId(1)));
-    assert!(workspace.active().is_empty());
-}
-
-#[test]
-fn stopping_a_cue_leaves_the_rest_of_its_chain_that_has_started() {
-    let workspace = workspace(vec![continuing(1), continuing_after(2, 2.0), audio(3)])
-        .apply(GO)
-        .apply(Command::Tick(1.0))
-        .apply(Command::Stop(CueId(1)));
-    let left: Vec<CueId> = workspace.active().iter().map(|active| active.id).collect();
+fn stopping_a_cue_cancels_only_the_rest_of_its_chain_that_it_has_yet_to_start() {
+    let stopped = |cues: Vec<Cue>| {
+        workspace(cues)
+            .apply(GO)
+            .apply(Command::Tick(1.0))
+            .apply(Command::Stop(CueId(1)))
+    };
+    let unstarted = stopped(vec![continuing_after(1, 2.0), audio(2)]);
+    assert!(unstarted.active().is_empty());
+    let started = stopped(vec![continuing(1), continuing_after(2, 2.0), audio(3)]);
+    let left: Vec<CueId> = started.active().iter().map(|active| active.id).collect();
     assert_eq!(left, [CueId(2), CueId(3)]);
 }
 

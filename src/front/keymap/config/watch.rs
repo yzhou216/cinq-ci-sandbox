@@ -45,7 +45,10 @@ type Watcher = Debouncer<RecommendedWatcher, RecommendedCache>;
 pub fn watch(file: PathBuf) -> impl Stream<Item = Config> {
     stream::channel(1, async move |mut output| {
         if let Err(error) = follow(&file, &mut output).await {
-            let _ = output.send(unwatched(&file, &error)).await;
+            let config = load(Some(&file));
+            let problem = format!("is not watched, so changes apply after a restart: {error}");
+            let problems = [config.problems, vec![problem]].concat();
+            let _ = output.send(Config { problems, ..config }).await;
         }
     })
 }
@@ -69,17 +72,6 @@ async fn follow(file: &Path, output: &mut mpsc::Sender<Config>) -> notify::Resul
         if !touched {
             return Ok(());
         }
-    }
-}
-
-/// Returns the configuration that `file` holds, with a problem that tells
-/// why changes to it apply only after a restart
-fn unwatched(file: &Path, error: &notify::Error) -> Config {
-    let config = load(Some(file));
-    let problem = format!("is not watched, so changes apply after a restart: {error}");
-    Config {
-        problems: [config.problems, vec![problem]].concat(),
-        ..config
     }
 }
 

@@ -25,7 +25,7 @@ fn next_number<'a>(numbers: impl Iterator<Item = &'a str>) -> String {
 
 impl Workspace {
     /// Puts `standby` on standby in a list without recording the move, as
-    /// undo and redo move it
+    /// GO moves it
     pub(super) fn with_standby(self, list: usize, standby: Option<CueId>) -> Self {
         self.with_list(list, |cues| cues.with_standby(standby))
     }
@@ -174,12 +174,7 @@ impl Workspace {
             lists,
             ..self
         };
-        let gone: Vec<CueId> = workspace
-            .active
-            .iter()
-            .map(|active| active.id)
-            .filter(|&id| workspace.cue(id).is_none())
-            .collect();
+        let gone = workspace.active_where(|active| workspace.cue(active.id).is_none());
         gone.into_iter().fold(workspace, Self::stopped)
     }
 

@@ -46,25 +46,15 @@ fn standby_goes_back_to_a_deleted_cue_unless_go_has_moved_it_since() {
 }
 
 #[test]
-fn added_cue_goes_away_and_comes_back_with_its_identity() {
-    let workspace = workspace(vec![audio(1)]);
-    let id = workspace.next_cue_id().expect("identities remain").0;
-    let undone = workspace
-        .apply(add(0, Kind::Audio, Place::End))
-        .apply(Command::Undo);
-    assert_eq!(ids(&undone), [1]);
-    assert_eq!(ids(&undone.apply(Command::Redo)), [1, id]);
-}
-
-#[test]
-fn cue_added_where_standby_waits_takes_standby_until_undone() {
-    let empty = Workspace::new(Vec::new());
-    let id = empty.next_cue_id().expect("identities remain").0;
-    let added = empty.apply(add(0, Kind::Audio, Place::End));
+fn added_cue_goes_away_and_comes_back_with_its_identity_and_the_standby_it_took() {
+    let played = workspace(vec![audio(1)]).apply(GO);
+    let id = played.next_cue_id().expect("identities remain").0;
+    let added = played.apply(add(0, Kind::Audio, Place::End));
     assert_eq!(standby(&added), Some(id));
     let undone = added.apply(Command::Undo);
-    assert_eq!(standby(&undone), None);
-    assert_eq!(standby(&undone.apply(Command::Redo)), Some(id));
+    assert_eq!((ids(&undone), standby(&undone)), (vec![1], None));
+    let redone = undone.apply(Command::Redo);
+    assert_eq!((ids(&redone), standby(&redone)), (vec![1, id], Some(id)));
 }
 
 #[test]
@@ -127,12 +117,6 @@ fn edits_or_moves_in_a_row_that_end_where_they_began_leave_nothing_to_undo() {
         .apply(moving(1, -1));
     assert_eq!(ids(&moved), [1, 2]);
     assert!(moved.undoable().is_none());
-}
-
-#[test]
-fn edit_that_changes_nothing_leaves_nothing_to_undo() {
-    let workspace = workspace(vec![audio(1)]).apply(rename(1, "Sound"));
-    assert!(workspace.undoable().is_none());
 }
 
 #[test]

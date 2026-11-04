@@ -38,7 +38,9 @@ struct ListFile {
 
 /// Cue as a show file holds it, without the settings that its kind does
 /// not use, and without those that keep their defaults, apart from its
-/// level, its duration, and whether a fade stops its target
+/// level, its duration, and whether a fade stops its target.  A setting
+/// that is `None` stays out of the file, since TOML has no null, and one
+/// that the file leaves out reads as `None`.
 #[derive(Serialize, Deserialize)]
 struct CueFile {
     id: u32,
@@ -49,25 +51,17 @@ struct CueFile {
     name: String,
     #[serde(default, skip_serializing_if = "String::is_empty")]
     file: String,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
     start: Option<f32>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
     end: Option<f32>,
     #[serde(default, rename = "loop", skip_serializing_if = "std::ops::Not::not")]
     looping: bool,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
     target: Option<u32>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
     pre_wait: Option<f32>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
     duration: Option<f32>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
     post_wait: Option<f32>,
     #[serde(default, skip_serializing_if = "is_manual")]
     advance: Advance,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
     level: Option<f32>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
     stop_target: Option<bool>,
     #[serde(default, skip_serializing_if = "String::is_empty")]
     notes: String,

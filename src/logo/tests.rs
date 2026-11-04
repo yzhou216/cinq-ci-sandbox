@@ -39,7 +39,7 @@ fn scallop_hangs_below_a_line_that_runs_from_right_to_left() {
 
 #[test]
 fn widths_from_arithmetic_are_written_to_two_decimal_places() {
-    assert_eq!(rounded(PEN * NAME_SCALE).to_string(), "2.4");
+    assert_eq!(layer::rounded(PEN * NAME_SCALE).to_string(), "2.4");
 }
 
 #[test]

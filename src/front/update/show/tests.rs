@@ -9,8 +9,8 @@ use std::fs;
 
 use tempfile::TempDir;
 
-use super::*;
-use crate::back::{CueId, Edit, Kind, Place};
+use super::{file::write, *};
+use crate::back::{Command, CueId, Edit, Kind, Place};
 
 /// Show file of one list of one memo cue
 const SHOW: &str = "[[list]]\nname = \"Main\"\n\n[[list.cue]]\nid = 1\nnumber = \"1\"\nkind = \"memo\"\nname = \"Note\"\n";
@@ -173,17 +173,17 @@ fn keeper_keeps_unsaved_changes_until_they_are_gone() {
     let kept = kept_file(directory.path(), Some(Path::new(STORM)));
     let app = storm();
     assert_eq!(keeper.keep(&app.show), None);
-    keeper.writer.settled();
+    keeper.settled();
     assert!(!kept.exists());
     let changed = renamed(app, "Cue");
     assert_eq!(keeper.keep(&changed.show), None);
-    keeper.writer.settled();
+    keeper.settled();
     assert_eq!(
         fs::read_to_string(&kept).ok(),
         Some(changed.show.text.clone())
     );
     assert_eq!(keeper.keep(&changed.send(Command::Undo).show), None);
-    keeper.writer.settled();
+    keeper.settled();
     assert!(!kept.exists());
 }
 
@@ -195,7 +195,7 @@ fn keeper_leaves_the_kept_changes_of_a_show_that_another_takes_the_place_of() {
     keeper.keep(&changed.show);
     let other = changed.opened(found(Some(CALM), Some(SHOW), None));
     assert_eq!(keeper.keep(&other.show), None);
-    keeper.writer.settled();
+    keeper.settled();
     assert!(kept.exists());
 }
 
@@ -209,7 +209,7 @@ fn kept_changes_move_along_with_their_show() {
     let save = saving(&changed, moved);
     let saved = renamed(changed, "Later").saved(save);
     assert_eq!(keeper.keep(&saved.show), None);
-    keeper.writer.settled();
+    keeper.settled();
     assert!(!kept.exists());
     assert!(kept_file(directory.path(), Some(Path::new(moved))).exists());
 }
@@ -266,7 +266,7 @@ fn keeper_tells_at_its_next_turn_why_a_change_failed() {
     let mut keeper = Keeper::new(Some(blocked));
     let changed = renamed(storm(), "Cue");
     assert_eq!(keeper.keep(&changed.show), None);
-    keeper.writer.settled();
+    keeper.settled();
     let failed = keeper.keep(&changed.show);
     assert!(
         failed.as_deref().is_some_and(
@@ -289,19 +289,10 @@ fn saving_keeps_the_permissions_of_the_show_and_the_link_to_it() {
     let link = directory.path().join("link.cinq.toml");
     symlink(&show, &link).expect("the link can be made");
     write(&link, "changed", true).expect("the show can be saved");
-    assert_eq!(
-        fs::read_to_string(&show).expect("the show can be read"),
-        "changed"
-    );
-    let link_type = fs::symlink_metadata(&link)
-        .expect("the link is there")
-        .file_type();
-    assert!(link_type.is_symlink());
-    let mode = fs::metadata(&show)
-        .expect("the show is there")
-        .permissions()
-        .mode();
-    assert_eq!(mode & 0o777, 0o640);
+    assert_eq!(fs::read_to_string(&show).ok().as_deref(), Some("changed"));
+    assert!(fs::symlink_metadata(&link).is_ok_and(|metadata| metadata.file_type().is_symlink()));
+    let mode = fs::metadata(&show).map(|metadata| metadata.permissions().mode() & 0o777);
+    assert_eq!(mode.ok(), Some(0o640));
 }
 
 #[test]

@@ -4,12 +4,6 @@
 
 //! Changes to vectors that move their items instead of cloning them
 
-/// Returns the items with one more inserted at an index
-pub(super) fn inserted<T>(mut items: Vec<T>, index: usize, item: T) -> Vec<T> {
-    items.insert(index, item);
-    items
-}
-
 /// Returns the items with the one at an index changed, or unchanged when
 /// the index is past the end
 pub(super) fn replaced<T>(items: Vec<T>, index: usize, change: impl FnOnce(T) -> T) -> Vec<T> {

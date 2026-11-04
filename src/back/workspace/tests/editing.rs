@@ -29,7 +29,7 @@ fn new_cue_before_another_targets_the_cue_it_follows() {
 }
 
 #[test]
-fn cue_added_after_a_list_played_to_its_end_waits_on_standby() {
+fn cue_added_waits_on_standby_only_at_the_end_of_a_list_played_to_its_end() {
     let played = workspace(vec![audio(1)]).apply(GO);
     assert_eq!(standby(&played), None);
     let id = played.next_cue_id().expect("identities remain").0;
@@ -39,12 +39,8 @@ fn cue_added_after_a_list_played_to_its_end_waits_on_standby() {
     assert_eq!(standby(&above), None);
     let below = played.apply(add(0, Kind::Audio, Place::After(CueId(1))));
     assert_eq!(standby(&below), Some(id));
-}
-
-#[test]
-fn cue_added_while_a_cue_waits_on_standby_leaves_standby_alone() {
-    let workspace = workspace(vec![audio(1), audio(2)]).apply(add(0, Kind::Audio, Place::End));
-    assert_eq!(standby(&workspace), Some(1));
+    let waiting = workspace(vec![audio(1), audio(2)]).apply(add(0, Kind::Audio, Place::End));
+    assert_eq!(standby(&waiting), Some(1));
 }
 
 #[test]
@@ -58,11 +54,20 @@ fn moved_cue_stops_at_either_end_of_its_list_and_keeps_standby() {
 
 #[test]
 fn loading_ignores_a_file_that_has_been_replaced() {
-    let workspace = workspace(vec![audio(1)])
-        .apply(Command::Edit(CueId(1), Edit::File("other.ogg".to_owned())))
+    let replaced = workspace(vec![audio(1)])
+        .apply(Command::Edit(CueId(1), Edit::File("other.ogg".to_owned())));
+    let stale = replaced
+        .clone()
         .apply(loaded(1, "sound.ogg", Media::Loaded { duration: 10.0 }));
-    let cue = workspace.cue(CueId(1)).unwrap();
-    assert_eq!(workspace.problem(cue), Some(Problem::NotLoaded));
+    let cue = stale.cue(CueId(1)).unwrap();
+    assert_eq!(stale.problem(cue), Some(Problem::NotLoaded));
+    // Failure of the file that was replaced leaves the cue playing
+    let failed = loaded(1, "sound.ogg", Media::Failed("file not found".to_owned()));
+    let playing = replaced
+        .apply(loaded(1, "other.ogg", Media::Loaded { duration: 10.0 }))
+        .apply(GO)
+        .apply(failed);
+    assert!(playing.active_of(CueId(1)).is_some());
 }
 
 #[test]
@@ -73,16 +78,6 @@ fn new_cues_are_numbered_after_the_highest_number_of_any_list() {
     ];
     let workspace = Workspace::new(lists).apply(add(1, Kind::Memo, Place::End));
     assert_eq!(workspace.lists()[1].cues[0].number, "8");
-}
-
-#[test]
-fn numbers_too_large_to_count_up_from_do_not_overflow() {
-    let endless = Cue {
-        number: "inf".to_owned(),
-        ..audio(1)
-    };
-    let workspace = workspace(vec![endless]).apply(add(0, Kind::Memo, Place::End));
-    assert_eq!(workspace.lists()[0].cues[1].number, u64::MAX.to_string());
 }
 
 #[test]
@@ -108,18 +103,6 @@ fn run_whose_sound_cannot_start_ends_and_its_chain_plays_on() {
         workspace.problem(cue),
         Some(Problem::LoadFailed("file not found"))
     );
-}
-
-#[test]
-fn failure_of_a_file_that_was_replaced_leaves_the_cue_playing() {
-    let replaced = loaded(1, "other.ogg", Media::Loaded { duration: 10.0 });
-    let stale = loaded(1, "sound.ogg", Media::Failed("file not found".to_owned()));
-    let workspace = workspace(vec![audio(1)])
-        .apply(Command::Edit(CueId(1), Edit::File("other.ogg".to_owned())))
-        .apply(replaced)
-        .apply(GO)
-        .apply(stale);
-    assert!(workspace.active_of(CueId(1)).is_some());
 }
 
 #[test]
@@ -151,7 +134,7 @@ fn sound_files_are_looked_for_next_to_the_file_a_cue_plays() {
 }
 
 #[test]
-fn edit_that_changes_nothing_leaves_a_running_cue_playing() {
+fn edit_that_changes_nothing_leaves_a_running_cue_playing_and_nothing_to_undo() {
     // Text fields send their text again on keys that change nothing, such
     // as Backspace at the start of the field
     let workspace = workspace(vec![audio(1)])
@@ -160,6 +143,7 @@ fn edit_that_changes_nothing_leaves_a_running_cue_playing() {
     let cue = workspace.cue(CueId(1)).unwrap();
     assert!(workspace.active_of(CueId(1)).is_some());
     assert_eq!(workspace.problem(cue), None);
+    assert!(workspace.undoable().is_none());
 }
 
 #[test]
@@ -184,19 +168,18 @@ fn deleting_the_last_cue_on_standby_moves_standby_past_the_end() {
 }
 
 #[test]
-fn new_numbers_read_numbers_with_spaces_and_large_numbers_exactly() {
-    let spaced = Cue {
-        number: " 12 ".to_owned(),
-        ..audio(1)
+fn new_numbers_read_spaced_and_large_numbers_exactly_and_do_not_overflow() {
+    let after = |number: &str| {
+        let numbered = Cue {
+            number: number.to_owned(),
+            ..audio(1)
+        };
+        let added = workspace(vec![numbered]).apply(add(0, Kind::Memo, Place::End));
+        added.lists()[0].cues[1].number.clone()
     };
-    let large = Cue {
-        number: "16777217".to_owned(),
-        ..audio(2)
-    };
-    let add = add(0, Kind::Memo, Place::End);
-    let numbers = |workspace: Workspace| workspace.lists()[0].cues.last().unwrap().number.clone();
-    assert_eq!(numbers(workspace(vec![spaced]).apply(add.clone())), "13");
-    assert_eq!(numbers(workspace(vec![large]).apply(add)), "16777218");
+    assert_eq!(after(" 12 "), "13");
+    assert_eq!(after("16777217"), "16777218");
+    assert_eq!(after("inf"), u64::MAX.to_string());
 }
 
 #[test]

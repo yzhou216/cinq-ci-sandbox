@@ -38,11 +38,14 @@ fn targets_go_by_where_dirs_finds_the_configuration() {
 }
 
 #[test]
-fn pages_mention_xdg_only_where_it_applies() {
+fn pages_mention_xdg_and_wayland_only_where_they_apply() {
     Platform::VARIANTS.iter().for_each(|&platform| {
         let xdg = platform == Platform::Xdg;
         let command = command_page(platform, DATE);
         assert_eq!(command.contains("XDG"), xdg, "cinq.1 for {platform:?}");
+        // Window needs a Wayland compositor on the platforms that follow XDG
+        let wayland = command.contains("WAYLAND_DISPLAY");
+        assert_eq!(wayland, xdg, "cinq.1 for {platform:?}");
         SCDOC.iter().for_each(|(name, _)| {
             let page = page(name, platform);
             assert_eq!(page.contains("XDG"), xdg, "{name} for {platform:?}");
@@ -73,14 +76,6 @@ fn pages_name_the_files_of_their_platform_alone() {
             );
         });
     });
-}
-
-#[test]
-fn command_page_names_wayland_only_where_the_window_needs_it() {
-    let needs = |platform: Platform| command_page(platform, DATE).contains("WAYLAND_DISPLAY");
-    assert!(needs(Platform::Xdg));
-    assert!(!needs(Platform::Darwin));
-    assert!(!needs(Platform::Windows));
 }
 
 #[test]

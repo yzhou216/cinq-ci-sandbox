@@ -15,33 +15,17 @@ use tempfile::TempDir;
 use super::*;
 
 #[test]
-fn file_chooses_a_keymap_and_changes_the_keys_it_names() {
-    let (keymap, problems) = config::parse("keymap = \"cua\"\n[keys]\ngo = \"F5\"\n");
+fn file_chooses_a_keymap_and_replaces_the_keys_of_the_actions_it_names() {
+    let (keymap, problems) = config::parse(
+        "keymap = \"cua\"\n[keys]\ngo = \"F5\"\nnext = [\"n\", \"ArrowDown\", \"n\"]\ndelete = []\n",
+    );
     assert!(problems.is_empty(), "{problems:?}");
     assert_eq!(keymap.name(), "cua");
     assert_eq!(keymap.keys(Action::Go), [keys("F5")]);
-    assert_eq!(keymap.keys(Action::Undo), [keys("Control+z")]);
-}
-
-#[test]
-fn file_naming_no_keymap_keeps_vi() {
-    let (keymap, problems) = config::parse("keymap = \"emacs\"\n");
-    assert_eq!(problems, ["no keymap is named `emacs`"]);
-    assert_eq!(keymap.name(), "vi");
-}
-
-#[test]
-fn file_replaces_the_keys_of_the_actions_it_names() {
-    let (keymap, problems) =
-        config::parse("[keys]\ngo = \"F5\"\nnext = [\"n\", \"ArrowDown\"]\ndelete = []\n");
-    assert!(problems.is_empty(), "{problems:?}");
-    assert_eq!(keymap.keys(Action::Go), [keys("F5")]);
+    // Keys listed twice for one action are bound once
     assert_eq!(keymap.keys(Action::Next), [keys("n"), keys("ArrowDown")]);
     assert!(keymap.keys(Action::Delete).is_empty());
-    assert_eq!(
-        keymap.keys(Action::Previous),
-        Keymap::default().keys(Action::Previous)
-    );
+    assert_eq!(keymap.keys(Action::Undo), [keys("Control+z")]);
 }
 
 #[test]
@@ -82,22 +66,11 @@ fn file_reports_bindings_that_hide_others() {
 }
 
 #[test]
-fn file_listing_keys_twice_for_one_action_binds_them_once() {
-    let (keymap, problems) = config::parse("[keys]\ngo = [\"F5\", \"F5\"]\n");
-    assert!(problems.is_empty(), "{problems:?}");
-    assert_eq!(keymap.keys(Action::Go), [keys("F5")]);
-}
-
-#[test]
-fn file_is_in_the_configuration_directory_of_the_platform() {
+fn file_is_in_the_directory_named_on_the_command_line_or_else_that_of_the_platform() {
     assert_eq!(
         config::file(None),
         dirs::config_dir().map(|directory| directory.join("cinq").join("config.toml"))
     );
-}
-
-#[test]
-fn directory_named_on_the_command_line_holds_the_file() {
     assert_eq!(
         config::file(Some(Path::new("/show"))),
         Some(PathBuf::from("/show/config.toml"))
@@ -124,6 +97,10 @@ fn file_defines_keymaps_of_its_own_from_others_or_from_no_keys() {
 
 #[test]
 fn file_reports_what_is_wrong_with_its_keymaps() {
+    // Keymap that is not there leaves vi
+    let (keymap, problems) = config::parse("keymap = \"emacs\"\n");
+    assert_eq!(problems, ["no keymap is named `emacs`"]);
+    assert_eq!(keymap.name(), "vi");
     let (keymap, problems) =
         config::parse("keymap = \"a\"\n[keymaps.a]\nfrom = \"b\"\n[keymaps.b]\nfrom = \"a\"\n");
     assert_eq!(problems, ["keymap a starts from itself"]);

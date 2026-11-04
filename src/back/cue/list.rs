@@ -4,10 +4,7 @@
 
 //! Cue lists, each with its own standby position
 
-use crate::back::{
-    Cue, CueId, Edit, Kind, Media, Place,
-    items::{inserted, replaced_where},
-};
+use crate::back::{Cue, CueId, Edit, Kind, Media, Place, items::replaced_where};
 
 /// Named list of cues with its own standby position
 #[derive(Debug, Clone)]
@@ -83,9 +80,9 @@ impl CueList {
             .map(|before| before.id);
         Self {
             standby: self.standby.or((index == self.cues.len()).then_some(id)),
-            cues: inserted(self.cues, index, Cue { target, ..cue }),
             ..self
         }
+        .with_cue_at(index, Cue { target, ..cue })
     }
 
     /// Removes a cue.  Standby on that cue moves on to the next cue, or
@@ -118,11 +115,9 @@ impl CueList {
 
     /// Inserts a cue at an index, or at the end when the list is shorter
     pub(in crate::back) fn with_cue_at(self, index: usize, cue: Cue) -> Self {
-        let index = index.min(self.cues.len());
-        Self {
-            cues: inserted(self.cues, index, cue),
-            ..self
-        }
+        let mut cues = self.cues;
+        cues.insert(index.min(cues.len()), cue);
+        Self { cues, ..self }
     }
 
     pub(in crate::back) fn edited(self, id: CueId, edit: Edit) -> Self {

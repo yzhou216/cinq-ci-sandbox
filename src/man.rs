@@ -133,19 +133,15 @@ pub fn command_page(platform: Platform, date: &str) -> String {
     let man = Man::new(command.about(summary))
         .date(date)
         .manual("General Commands Manual");
-    let rendered = |render: &Section| {
-        let mut section = Vec::new();
-        render(&man, &mut section).expect("writing to memory does not fail");
-        String::from_utf8(section).expect("the page is UTF-8")
-    };
-    let preamble = Roff::new().render();
-    let body: String = SECTIONS
+    let mut page = Vec::new();
+    SECTIONS
         .iter()
-        .map(rendered)
-        .chain([epilogue(platform, &notice).render()])
-        .map(|section| section.replacen(&preamble, "", 1))
-        .collect();
-    [preamble, body].concat()
+        .try_for_each(|render| render(&man, &mut page))
+        .and_then(|()| epilogue(platform, &notice).to_writer(&mut page))
+        .expect("writing to memory does not fail");
+    let preamble = Roff::new().render();
+    let body = String::from_utf8(page).expect("the page is UTF-8");
+    format!("{preamble}{}", body.replace(&preamble, ""))
 }
 
 /// Returns the sections of cinq(1) that clap_mangen cannot derive from the

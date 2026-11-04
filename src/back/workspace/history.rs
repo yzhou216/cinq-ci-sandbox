@@ -24,8 +24,6 @@ mod undo;
 
 pub use change::{Change, Placed, Standby, Turn};
 
-use crate::back::items::replaced;
-
 /// Changes that undo can take back, and the changes it took back that redo
 /// can make again
 #[derive(Debug, Clone, Default)]
@@ -40,21 +38,18 @@ impl History {
     /// Returns the history with a change made, after which redo has nothing
     /// to make again
     fn recorded(self, change: Change) -> Self {
-        let length = self.undo.len();
-        let joins = self.turn == Some(Turn::Done)
-            && self.undo.last().is_some_and(|last| last.takes(&change));
-        let undo: Vec<Change> = if joins {
-            replaced(self.undo, length - 1, |last| last.then(change))
-        } else {
-            self.undo.into_iter().chain([change]).collect()
+        let mut undo = self.undo;
+        let latest = undo.pop_if(|last| self.turn == Some(Turn::Done) && last.takes(&change));
+        let change = match latest {
+            Some(latest) => latest.then(change),
+            None => change,
         };
         // Changes in a row that end where they began leave nothing to undo
-        let cancelled = joins && undo.last().is_some_and(Change::changes_nothing);
-        let kept = undo.len() - usize::from(cancelled);
+        let kept = Some(change).filter(|change| !change.changes_nothing());
         Self {
-            undo: undo.into_iter().take(kept).collect(),
+            turn: kept.as_ref().map(|_| Turn::Done),
+            undo: undo.into_iter().chain(kept).collect(),
             redo: Vec::new(),
-            turn: (!cancelled).then_some(Turn::Done),
         }
     }
 

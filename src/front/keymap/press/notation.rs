@@ -18,22 +18,25 @@ const SPACE: &str = "Space";
 /// Modifiers that a press can hold, in the order they are written
 const HELD: [NamedKey; 3] = [NamedKey::Control, NamedKey::Alt, NamedKey::Shift];
 
+impl Name {
+    /// Reads the name of a key: its key value in the specification, or
+    /// [`SPACE`] for the space bar
+    pub(super) fn read(name: &str) -> Option<Self> {
+        match name {
+            SPACE => Some(Name::Char(' ')),
+            name => match name.parse::<Key>().ok()? {
+                Key::Named(named) => Some(Name::Named(named)),
+                Key::Character(text) => text.chars().exactly_one().ok().map(Name::Char),
+            },
+        }
+    }
+}
+
 impl Press {
     /// Reads one press, such as `j`, `Enter`, or `Control+d`
     fn read(token: &str) -> Result<Self, String> {
         let (held, key) = modifiers(token)?;
-        let key = match key {
-            SPACE => Some(Name::Char(' ')),
-            key => match key.parse::<Key>() {
-                Ok(Key::Named(named)) if MODIFIERS.contains(&named) => {
-                    return Err(format!("`{token}` only changes the keys pressed with it"));
-                }
-                Ok(Key::Named(named)) => Some(Name::Named(named)),
-                Ok(Key::Character(text)) => text.chars().exactly_one().ok().map(Name::Char),
-                Err(_) => None,
-            },
-        }
-        .ok_or_else(|| format!("`{token}` names no key"))?;
+        let key = Name::read(key).ok_or_else(|| format!("`{token}` names no key"))?;
         let shift = held.contains(&NamedKey::Shift);
         // Shift on a letter makes the capital, which is the key it types
         let (key, shift) = match key {
@@ -42,6 +45,9 @@ impl Press {
             }
             Name::Char(c) if shift && c != ' ' => {
                 return Err(format!("`{token}` is written as the character it types"));
+            }
+            Name::Named(named) if MODIFIERS.contains(&named) => {
+                return Err(format!("`{token}` only changes the keys pressed with it"));
             }
             key => (key, shift),
         };
@@ -72,15 +78,7 @@ impl fmt::Display for Press {
 /// Reads a sequence of presses separated by spaces, such as `g g` or
 /// `Control+w j`
 pub fn sequence(text: &str) -> Result<Vec<Press>, String> {
-    let presses = text
-        .split_whitespace()
-        .map(Press::read)
-        .collect::<Result<Vec<_>, _>>()?;
-    if presses.is_empty() {
-        Err("a binding needs at least one key".to_owned())
-    } else {
-        Ok(presses)
-    }
+    text.split_whitespace().map(Press::read).collect()
 }
 
 /// Writes a sequence of presses as the configuration file does

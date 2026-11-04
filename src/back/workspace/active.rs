@@ -2,17 +2,13 @@
 //
 // SPDX-License-Identifier: GPL-3.0-or-later
 
-//! Cues that GO has fired, kept as bookkeeping without side effects
+//! Cues that GO has fired, kept as bookkeeping without side effects, with
+//! what they do once their pre-wait is over and the fades they make
 //!
 //! Time here is counted in seconds as `f64`, since a clock that adds a
 //! tick forty times a second for an hour would drift by seconds in `f32`.
 
-mod effect;
-
 use crate::back::{Clip, Cue, CueId, Kind};
-
-pub(super) use effect::Effect;
-pub use effect::Fade;
 
 /// Cue that GO has fired and that has not finished yet
 ///
@@ -222,4 +218,40 @@ impl Active {
             None => self,
         }
     }
+}
+
+/// Change to the level of an audio cue that a fade cue or a panic makes
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct Fade {
+    /// Fade cue making the change, or `None` for a panic
+    pub(in crate::back) by: Option<CueId>,
+    /// Level in dB the fade ends at
+    pub(in crate::back) to: f32,
+    /// Seconds until the fade ends
+    pub(in crate::back) remaining: f64,
+    /// Whether the faded cue stops once the fade ends
+    pub(in crate::back) then_stop: bool,
+}
+
+impl Fade {
+    /// Returns whether a newer fade may take over from this one.  Nothing
+    /// takes over from a panic, and only a fade that stops the cue takes
+    /// over from another that stops it, so that no fade brings back a cue
+    /// on its way out.
+    pub(in crate::back) fn yields_to(&self, newer: &Fade) -> bool {
+        self.by.is_some() && (newer.then_stop || !self.then_stop)
+    }
+}
+
+/// What a fired cue does once its pre-wait is over
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub(in crate::back) enum Effect {
+    /// Plays a clip of the sound file of an audio cue
+    Sound(Clip),
+    /// Makes a fade on the level of a cue
+    Fade { target: CueId, fade: Fade },
+    /// Stops a cue
+    Stop(CueId),
+    /// Takes time and does nothing else, as wait and memo cues do
+    Nothing,
 }

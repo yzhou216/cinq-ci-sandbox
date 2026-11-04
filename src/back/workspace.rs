@@ -181,6 +181,16 @@ impl Workspace {
         self.active.iter().find(|active| active.id == id)
     }
 
+    /// Returns the identities of the cues that GO has fired that `test`
+    /// accepts
+    fn active_where(&self, test: impl Fn(&Active) -> bool) -> Vec<CueId> {
+        self.active
+            .iter()
+            .filter(|active| test(active))
+            .map(|active| active.id)
+            .collect()
+    }
+
     /// Returns the reason a cue cannot play, if there is one
     pub fn problem<'a>(&self, cue: &'a Cue) -> Option<Problem<'a>> {
         match (cue.kind, &cue.media) {

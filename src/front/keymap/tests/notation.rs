@@ -30,7 +30,7 @@ fn notation_rejects_what_cannot_be_bound() {
         "", "Foo", "escape", "gg", "Control+", "Shift", "Super", "Meta+x", "Shift+1",
     ]
     .into_iter()
-    .filter(|text| sequence(text).is_ok())
+    .filter(|text| binding(text).is_ok())
     .collect();
     assert!(accepted.is_empty(), "{accepted:?}");
 }

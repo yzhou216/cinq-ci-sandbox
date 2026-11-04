@@ -10,37 +10,34 @@
 //! changes, [`keys`] reads keys and moves the keyboard focus, [`scroll`]
 //! keeps the selected cue in view whenever the selection moves, [`loading`]
 //! loads the files of audio cues and tries again those that could not be
-//! played, and [`show`](mod@show) opens and saves shows and keeps their
-//! unsaved changes.  The key bindings follow the configuration file as it
-//! changes, through [`keymap::config::watch`](fn@keymap::config::watch).
+//! played, [`show`](mod@show) opens and saves shows and keeps their unsaved
+//! changes, [`link`] opens the links of the help page, and [`subscription`]
+//! listens for the events that become messages.  The key bindings follow
+//! the configuration file as it changes, through
+//! [`keymap::config::watch`](fn@keymap::config::watch).
 
 mod editing;
 mod keys;
+mod link;
 mod loading;
 mod navigation;
 mod scroll;
 mod show;
+mod subscription;
 #[cfg(test)]
 mod tests;
 
 use std::{
-    ffi::OsStr,
     path::{Path, PathBuf},
     thread,
-    time::Duration,
 };
 
-use iced::{
-    Event, Subscription, Task, event, futures::channel::oneshot, keyboard, mouse, time, window,
-};
-use itertools::chain;
+use iced::{Subscription, Task, futures::channel::oneshot};
 
 use super::{App, Cinq, Message, keymap, view};
 use crate::back::{Audio, Command, Edit, TICK, parse_level};
+use link::{edit_config, open_link};
 pub(super) use show::{Keeper, Read, Saved, Show};
-
-/// Interval at which the files that could not be played are tried again
-const RECHECK: Duration = Duration::from_secs(2);
 
 impl Cinq {
     /// Opens the audio device, reads the key bindings from `config`, and
@@ -49,14 +46,13 @@ impl Cinq {
     pub(super) fn new(config: Option<&Path>, show: Option<PathBuf>) -> (Self, Task<Message>) {
         let audio = Audio::open();
         let unsaved_directory = show::unsaved_directory();
-        let app = App {
-            audio_error: audio.error().map(str::to_owned),
-            config: keymap::config::load(config),
-            unsaved_directory: unsaved_directory.clone(),
-            ..App::default()
-        };
         let cinq = Self {
-            app,
+            app: App {
+                audio_error: audio.error().map(str::to_owned),
+                config: keymap::config::load(config),
+                unsaved_directory: unsaved_directory.clone(),
+                ..App::default()
+            },
             audio,
             keeper: Keeper::new(unsaved_directory.clone()),
         };
@@ -99,40 +95,6 @@ impl Cinq {
 }
 
 impl App {
-    /// Listens for keys, clicks, changes of the window size, and changes of
-    /// the configuration, for clock ticks while any cue is running, and for
-    /// the time to try again the files that could not be played
-    fn subscription(&self) -> Subscription<Message> {
-        let ticks = self.running().then(|| time::every(TICK).map(Message::Tick));
-        let rechecks = (!self.rechecking && self.workspace.failed().next().is_some())
-            .then(|| time::every(RECHECK).map(|_| Message::Recheck));
-        let always = [
-            keyboard::listen().filter_map(keys::key_press),
-            event::listen_with(clicked),
-            window::resize_events().map(|_| Message::Resized),
-        ];
-        let reconfigured = self.config.source.file().map(|file| {
-            Subscription::run_with(file.to_owned(), |file| keymap::config::watch(file.clone()))
-                .map(Message::Reconfigured)
-        });
-        Subscription::batch(chain!(always, ticks, rechecks, reconfigured))
-    }
-
-    /// Returns the state without the last failure to open a link, along
-    /// with the task that runs `open` on a thread of its own, since an
-    /// opener can take a moment to tell that it failed
-    fn opening(
-        self,
-        open: impl FnOnce() -> Result<(), String> + Send + 'static,
-    ) -> (Self, Task<Message>) {
-        let task = on_own_thread(open).map(Message::LinkOpened);
-        let app = Self {
-            link_problem: None,
-            ..self
-        };
-        (app, task)
-    }
-
     /// Returns the state along with the task that `task` starts from it
     fn with_task(self, task: impl FnOnce(&Self) -> Task<Message>) -> (Self, Task<Message>) {
         let task = task(&self);
@@ -302,12 +264,6 @@ impl App {
     }
 }
 
-/// Reports a press of any mouse button, captured by a widget or not, so
-/// that a click drops a command typed halfway
-fn clicked(event: Event, _status: event::Status, _window: window::Id) -> Option<Message> {
-    matches!(event, Event::Mouse(mouse::Event::ButtonPressed(_))).then_some(Message::Clicked)
-}
-
 /// Runs blocking `work` on a thread of its own once iced runs the task: off
 /// the interface thread, where GO and Panic must never wait, and off the
 /// workers of iced's executor, which keep the clock ticking.  The task gives
@@ -322,44 +278,4 @@ fn on_own_thread<T: Send + 'static>(work: impl FnOnce() -> T + Send + 'static) -
         receiver.await.ok()
     })
     .and_then(Task::done)
-}
-
-/// Opens a web page or a file in the program that the desktop opens it
-/// with: through xdg-open on desktops that follow the XDG specifications,
-/// and through the system's own opener elsewhere.  Returns why it failed,
-/// if it did.
-fn open_link(target: &OsStr) -> Result<(), String> {
-    open::that_detached(target)
-        .map_err(|error| format!("Cannot open {}: {error}", target.to_string_lossy()))
-}
-
-/// Opens the configuration file `file` as [`open_link`] does, after making
-/// it when it is not there yet, except on Darwin, which opens it in the
-/// default text editor, since few programs there say they open TOML.
-/// Returns why it failed, if it did.
-fn edit_config(file: &Path) -> Result<(), String> {
-    keymap::config::make(file)
-        .map_err(|error| format!("Cannot make {}: {error}", file.display()))?;
-    if cfg!(target_os = "macos") {
-        open_in_text_editor(file)
-    } else {
-        open_link(file.as_os_str())
-    }
-}
-
-/// Opens `file` in the default text editor through `open -t`, and waits
-/// for `open`, which tells whether there is one.  Returns why it failed, if
-/// it did.
-fn open_in_text_editor(file: &Path) -> Result<(), String> {
-    let cannot = |why: String| format!("Cannot open {}: {why}", file.display());
-    let status = std::process::Command::new("/usr/bin/open")
-        .args(["-t", "--"])
-        .arg(file)
-        .status()
-        .map_err(|error| cannot(error.to_string()))?;
-    if status.success() {
-        Ok(())
-    } else {
-        Err(cannot(format!("open -t failed with {status}")))
-    }
 }

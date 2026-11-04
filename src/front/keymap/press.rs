@@ -15,7 +15,7 @@
 
 mod notation;
 
-use iced::keyboard::{Key, Modifiers, key::Named};
+use iced::keyboard::{Key, Modifiers};
 use itertools::Itertools;
 use keyboard_types::NamedKey;
 
@@ -73,7 +73,11 @@ impl Press {
         }
         let (key, shift) = match key {
             Key::Character(text) => (Name::Char(text.chars().exactly_one().ok()?), false),
-            Key::Named(named) => match standard(*named)? {
+            // iced names its keys after the specification, and the space bar
+            // as the configuration file does, so the name of each variant is
+            // the name of its key.  Its `Super` is the legacy name of Meta,
+            // which `MODIFIERS` holds as well.
+            Key::Named(named) => match Name::read(&format!("{named:?}"))? {
                 Name::Named(named) if MODIFIERS.contains(&named) => return None,
                 key => (key, modifiers.shift()),
             },
@@ -104,17 +108,5 @@ impl Press {
             Name::Char(c) if !self.ctrl && !self.alt => c.to_digit(10).map(|digit| digit as usize),
             _ => None,
         }
-    }
-}
-
-/// Returns the key of the specification that iced reports as `named`.
-/// iced names its keys after the specification, except that it gives the
-/// space bar a name, so the name of any other variant is the name of its
-/// key.  Its `Super` is the legacy name of Meta, which [`MODIFIERS`] holds
-/// as well.
-fn standard(named: Named) -> Option<Name> {
-    match named {
-        Named::Space => Some(Name::Char(' ')),
-        named => format!("{named:?}").parse().ok().map(Name::Named),
     }
 }

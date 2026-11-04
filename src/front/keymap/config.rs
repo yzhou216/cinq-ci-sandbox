@@ -40,7 +40,7 @@ use std::{
 use itertools::Itertools;
 use toml::{Table, Value};
 
-use super::{Action, Keymap, Preset, Press, binding};
+use super::{Action, Keymap, Preset, binding};
 use crate::front::read;
 pub use watch::watch;
 
@@ -57,10 +57,6 @@ pub struct Config {
     /// in place, and each written to follow the name of the file
     pub problems: Vec<String>,
 }
-
-/// Entry of a table that binds keys, `[keys]` or a keymap of the file's
-/// own: an action and the key sequences bound to it
-type Entry = (Action, Vec<Vec<Press>>);
 
 /// Where the key bindings came from
 #[derive(Debug, Clone, Default)]
@@ -119,24 +115,20 @@ pub fn load(file: Option<&Path>) -> Config {
     let Some(file) = file else {
         return Config::default();
     };
-    match read(file) {
-        Ok(Some(text)) => {
-            let (keymap, problems) = parse(&text);
-            Config {
-                keymap,
-                source: Source::File(file.to_owned()),
-                problems,
-            }
+    let (keymap, problems) = match read(file) {
+        Ok(Some(text)) => parse(&text),
+        Err(error) => (Keymap::default(), vec![format!("cannot be read: {error}")]),
+        Ok(None) => {
+            return Config {
+                source: Source::Missing(file.to_owned()),
+                ..Config::default()
+            };
         }
-        Err(error) => Config {
-            source: Source::File(file.to_owned()),
-            problems: vec![format!("cannot be read: {error}")],
-            ..Config::default()
-        },
-        Ok(None) => Config {
-            source: Source::Missing(file.to_owned()),
-            ..Config::default()
-        },
+    };
+    Config {
+        keymap,
+        source: Source::File(file.to_owned()),
+        problems,
     }
 }
 
@@ -230,27 +222,21 @@ fn bind<'a>(
     entries: impl IntoIterator<Item = (&'a String, &'a Value)>,
     place: &str,
 ) -> (Keymap, Vec<String>) {
-    let (entries, problems): (Vec<Option<Entry>>, Vec<Vec<String>>) = entries
+    entries
         .into_iter()
-        .map(|(name, value)| entry(name, value))
-        .unzip();
-    let keymap = entries
-        .into_iter()
-        .flatten()
-        .fold(keymap, |keymap, (action, keys)| keymap.with(action, keys));
-    let problems = problems
-        .into_iter()
-        .flatten()
-        .map(|problem| format!("{place}{problem}"))
-        .collect();
-    (keymap, problems)
+        .fold((keymap, Vec::new()), |(keymap, problems), (name, value)| {
+            let (keymap, more) = entry(keymap, name, value);
+            let more = more.into_iter().map(|problem| format!("{place}{problem}"));
+            (keymap, problems.into_iter().chain(more).collect())
+        })
 }
 
-/// Reads the keys that one entry of the `[keys]` table or of a keymap binds
-/// to its action, along with the problems that leave some of them out
-fn entry(name: &str, value: &Value) -> (Option<Entry>, Vec<String>) {
+/// Binds the keys of one entry of the `[keys]` table or of a keymap to its
+/// action in place of the keys that `keymap` gives it, along with the
+/// problems that leave some of them out
+fn entry(keymap: Keymap, name: &str, value: &Value) -> (Keymap, Vec<String>) {
     let Ok(action) = name.parse::<Action>() else {
-        return (None, vec![format!("no action is named `{name}`")]);
+        return (keymap, vec![format!("no action is named `{name}`")]);
     };
     let values = match value {
         Value::Array(values) => values.as_slice(),
@@ -265,5 +251,5 @@ fn entry(name: &str, value: &Value) -> (Option<Entry>, Vec<String>) {
         .partition_result();
     // Sequence listed twice binds it once
     let sequences = sequences.into_iter().unique().collect();
-    (Some((action, sequences)), problems)
+    (keymap.with(action, sequences), problems)
 }

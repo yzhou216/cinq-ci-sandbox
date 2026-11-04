@@ -106,13 +106,6 @@ fn settings_that_a_file_leaves_out_take_the_defaults_of_their_kind() {
 }
 
 #[test]
-fn show_file_without_lists_holds_one_empty_list() {
-    let read = Workspace::from_show("", "/show").expect("an empty file reads");
-    assert_eq!(read.lists().len(), 1);
-    assert!(read.lists()[0].cues.is_empty());
-}
-
-#[test]
 fn show_file_whose_cues_share_an_identity_cannot_be_read() {
     let twice = "[[list.cue]]\nid = 1\nkind = \"memo\"\n".repeat(2);
     assert_eq!(
@@ -170,6 +163,9 @@ fn show_always_holds_a_list() {
     assert_eq!(Workspace::new(Vec::new()).lists().len(), 1);
     let emptied = storm().apply(Command::Restore(Vec::new()));
     assert_eq!(emptied.lists().len(), 1);
+    let read = Workspace::from_show("", "/show").expect("a file without lists reads");
+    assert_eq!(read.lists().len(), 1);
+    assert!(read.lists()[0].cues.is_empty());
 }
 
 #[test]
