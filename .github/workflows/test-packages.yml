@@ -34,6 +34,12 @@ jobs:
       fail-fast: false
       matrix:
         include:
+          - image: debian:testing
+            install: apt-get update && apt-get install -y ./cinq_*.deb
+            remove: apt-get remove -y cinq
+          - image: fedora:latest
+            install: dnf install -y ./cinq-*.rpm
+            remove: dnf remove -y cinq
           - image: archlinux:latest # Leaves out manual pages too
             install: sed -i '/^NoExtract/d' /etc/pacman.conf && pacman -Sy --noconfirm && pacman -U --noconfirm ./cinq-*.pkg.tar.zst
             remove: pacman -R --noconfirm cinq
@@ -43,6 +49,7 @@ jobs:
       - uses: actions/download-artifact@main
         with:
           name: packages
+      - run: getconf GNU_LIBC_VERSION || ldd --version | head -1
       - run: ${{ matrix.install }}
       - run: |
           echo "glibc $(getconf GNU_LIBC_VERSION)"
@@ -63,6 +70,10 @@ jobs:
       fail-fast: false
       matrix:
         include:
+          - image: debian:testing
+            install: apt-get update && apt-get install -y ./cinq_*.deb sway grim fonts-dejavu-core
+          - image: fedora:latest
+            install: dnf install -y ./cinq-*.rpm sway grim dejavu-sans-mono-fonts
           - image: archlinux:latest
             install: pacman -Sy --noconfirm sway grim ttf-dejavu && pacman -U --noconfirm ./cinq-*.pkg.tar.zst
     runs-on: ubuntu-latest
@@ -73,6 +84,7 @@ jobs:
       - uses: actions/download-artifact@main
         with:
           name: packages
+      - run: getconf GNU_LIBC_VERSION || ldd --version | head -1
       - run: ${{ matrix.install }}
       - run: |
           export XDG_RUNTIME_DIR=$(mktemp -d) WLR_BACKENDS=headless WLR_RENDERER=pixman WLR_LIBINPUT_NO_DEVICES=1
