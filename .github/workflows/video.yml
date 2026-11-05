@@ -26,6 +26,9 @@ jobs:
           mkdir x86_64 aarch64
           cp result/bin/cinq.exe x86_64/
           cp result-1/bin/cinq.exe aarch64/
+          nix build --impure -f tests.nix x86_64 aarch64 --out-link tests
+          cp tests/cinq-*.exe x86_64/tests.exe
+          cp tests-1/cinq-*.exe aarch64/tests.exe
       - uses: actions/upload-artifact@main
         with:
           name: show
@@ -33,11 +36,11 @@ jobs:
       - uses: actions/upload-artifact@main
         with:
           name: x86_64
-          path: x86_64/cinq.exe
+          path: x86_64
       - uses: actions/upload-artifact@main
         with:
           name: aarch64
-          path: aarch64/cinq.exe
+          path: aarch64
   linux:
     needs: media
     runs-on: ubuntu-latest
@@ -62,13 +65,13 @@ jobs:
           export WAYLAND_DISPLAY=$(ls "$XDG_RUNTIME_DIR" | grep '^wayland-[0-9]*$' | head -1)
           (cd show && timeout -k 5 60 ../result/bin/cinq video.cinq.toml > ../cinq.log 2>&1 &)
           sleep 6
-          timeout -k 5 30 wf-recorder -f recording.mp4 > recorder.log 2>&1 &
+          timeout -k 5 30 wf-recorder -D -f recording.mp4 > recorder.log 2>&1 &
           sleep 2
           grim 1-opened.png
-          wtype -k space
+          wtype -s 300 -k space
           sleep 5
           grim 2-playing.png
-          wtype -k space
+          wtype -s 300 -k space
           sleep 1
           grim 3-fading.png
           sleep 4
@@ -100,6 +103,9 @@ jobs:
       - run: |
           open result/Applications/cinq.app --args "$PWD/show/video.cinq.toml"
           sleep 10
+          # Main window and stage side by side, both in sight of the recording
+          osascript -e 'tell application "System Events" to tell process "cinq"' -e 'set position of window "video.cinq.toml - cinq" to {0, 30}' -e 'set size of window "video.cinq.toml - cinq" to {560, 700}' -e 'set position of window "video.cinq.toml stage - cinq" to {560, 30}' -e 'set size of window "video.cinq.toml stage - cinq" to {464, 300}' -e 'end tell' || echo "windows stay put"
+          sleep 2
           screencapture -x 1-opened.png
           screencapture -v -V 14 recording.mov &
           sleep 2
@@ -142,6 +148,9 @@ jobs:
         with:
           name: show
           path: show
+      - shell: pwsh
+        run: ./tests.exe back::video --test-threads 1
+        continue-on-error: true # Recording still runs
       - shell: pwsh
         run: |
           Add-Type -AssemblyName System.Drawing, System.Windows.Forms
@@ -190,7 +199,7 @@ jobs:
             Start-Sleep -Milliseconds 300
             [System.Windows.Forms.SendKeys]::SendWait(" ")
           }
-          $cinq = Start-Process ./cinq.exe -ArgumentList "video.cinq.toml" -WorkingDirectory "$pwd\show" -PassThru
+          $cinq = Start-Process ./cinq.exe -ArgumentList "video.cinq.toml" -WorkingDirectory "$pwd\show" -RedirectStandardError "$pwd\err.txt" -PassThru
           Start-Sleep 10
           $main = [Windows]::Find($cinq.Id, ".toml - cinq")
           $stage = [Windows]::Find($cinq.Id, " stage - cinq")
@@ -204,6 +213,7 @@ jobs:
             Start-Sleep -Milliseconds 80
           }
           Shoot $main "$pwd\main-3-faded.png"
+          "--- stderr"; Get-Content err.txt
           if ($cinq.HasExited) { "cinq exited with $($cinq.ExitCode)"; exit 1 }
           Stop-Process $cinq
       - if: always()
