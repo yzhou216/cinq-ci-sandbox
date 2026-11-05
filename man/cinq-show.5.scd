@@ -22,7 +22,7 @@ The file lists the cue lists of the show in order, each with its cues, and
 each cue with the settings that its kind uses.
 What belongs to a session rather than to the show stays out of the file: the
 cue on standby, which is the first of each list once the show opens, the cues
-that run, and how long each sound file plays.
+that run, and how long each sound or video file plays.
 
 Saving leaves out the settings that the kind of a cue does not use, and those
 that keep their defaults, apart from *level*, *duration*, and *stop_target*,
@@ -55,32 +55,37 @@ Each cue is a table in the array *cue* of its list:
 	Number of the cue, as the cue list shows it, which can be any text.
 
 *kind*
-	What the cue does: *audio*, *fade*, *stop*, *wait*, or *memo*.
+	What the cue does: *audio*, *video*, *fade*, *stop*, *wait*, or *memo*.
+	An audio cue plays a sound file, and a video cue plays a video file, as
+	*VIDEO* describes.
 
 *name*
 	Name of the cue.
 
 *file*
-	Sound file that an audio cue plays: an absolute path, or one relative to
-	the directory of the show file.
+	Sound file that an audio cue plays, or video file that a video cue plays:
+	an absolute path, or one relative to the directory of the show file.
+	Sound files hold WAV, FLAC, Ogg Vorbis, MP3, or AAC in MP4.
 
 *start*
-	Seconds into its sound file at which an audio cue starts, which are none
-	by default.
+	Seconds into its file at which an audio or video cue starts, which are
+	none by default.
 
 *end*
-	Seconds into its sound file at which an audio cue ends, which is the end
-	of the file by default.
+	Seconds into its file at which an audio or video cue ends, which is the
+	end of the file by default.
 	A cue that starts at or after its end cannot play.
 
 *loop*
-	Whether an audio cue plays from its start again each time it reaches its
-	end, which it does not by default.
+	Whether an audio or video cue plays from its start again each time it
+	reaches its end, which it does not by default.
 	A cue that loops plays until something stops it, such as a fade cue that
 	stops it, a stop cue, or a panic.
 
 *target*
 	Identity of the cue that a fade or stop cue acts on.
+	A fade cue acts on an audio or video cue, and a stop cue on any other
+	cue.
 
 *pre_wait*
 	Seconds between the cue firing and its action, which are none by
@@ -102,8 +107,8 @@ Each cue is a table in the array *cue* of its list:
 	ends, which that of an audio cue that loops never does.
 
 *level*
-	Level in dB that an audio cue plays at, which is 0 by default, or that a
-	fade cue fades its target to, which is -60, silence, by default.
+	Level in dB that an audio or video cue plays at, which is 0 by default, or
+	that a fade cue fades its target to, which is -60, silence, by default.
 	It lies between -60 and 12.
 
 *stop_target*
@@ -115,6 +120,31 @@ Each cue is a table in the array *cue* of its list:
 
 A file in which two cues share an identity, or a level lies outside its range,
 cannot be opened.
+
+# VIDEO
+
+A video cue plays H.264 video in MP4, as files ending in _.mp4_, _.m4v_, or
+_.mov_ hold it, along with the sound of its AAC track, in mono or stereo.
+A file without a sound track plays its picture alone.
+A video cue takes as long as the picture of its file, and its *start*, *end*,
+*loop*, *level*, and waits work as those of an audio cue do.
+
+The pictures of video cues show in a stage window of their own, which opens
+beside the main window once the show holds a video cue.
+It shows black while no video plays, and otherwise the picture of the video
+cue that fired last, whole and as large as the window allows, with black
+around it where its shape differs from that of the window.
+A fade cue that stops a video cue fades its picture out along with its sound,
+as a panic does: to black, or to the picture of an earlier video cue that
+plays on.
+Pausing holds the picture, and a cue that loops loops its picture with its
+sound.
+
+Closing the stage window hides it until a video cue fires again, while closing
+the main window quits *cinq*.
+The key of *fullscreen*, as *cinq*(5) describes, toggles the stage window
+between fullscreen and a window, and every other key acts the same in either
+window.
 
 # UNSAVED CHANGES
 
@@ -170,6 +200,34 @@ kind = "fade"
 name = "Storm out"
 target = 1
 duration = 8.0
+level = -60.0
+stop_target = true
+```
+
+A list in which a video plays from two seconds into its file, a little below
+the level of its sound, until a fade cue fades its picture to black and its
+sound to silence over three seconds, and then stops it:
+
+```
+[[list]]
+name = "Main"
+
+[[list.cue]]
+id = 1
+number = "1"
+kind = "video"
+name = "Opening titles"
+file = "video/titles.mp4"
+start = 2.0
+level = -6.0
+
+[[list.cue]]
+id = 2
+number = "2"
+kind = "fade"
+name = "Titles out"
+target = 1
+duration = 3.0
 level = -60.0
 stop_target = true
 ```

@@ -4,18 +4,21 @@
 
 //! Update cycle, which applies each message to the interface state
 //!
-//! Each concern of the update has a module of its own: [`navigation`]
-//! moves the selection, switches lists, and fires GO, [`editing`] adds,
-//! moves, and deletes cues, chooses their sound files, and undoes and redoes
-//! changes, [`keys`] reads keys and moves the keyboard focus, [`scroll`]
-//! keeps the selected cue in view whenever the selection moves, [`loading`]
-//! loads the files of audio cues and tries again those that could not be
-//! played, [`show`](mod@show) opens and saves shows and keeps their unsaved
-//! changes, [`link`] opens the links of the help page, and [`subscription`]
-//! listens for the events that become messages.  The key bindings follow
-//! the configuration file as it changes, through
+//! Each concern of the update has a module of its own: [`cinq`] reaches
+//! the parts with side effects, [`navigation`] moves the selection,
+//! switches lists, and fires GO, [`editing`] adds, moves, and deletes cues,
+//! chooses their files, and undoes and redoes changes, [`keys`] reads keys
+//! and moves the keyboard focus, [`scroll`] keeps the selected cue in view
+//! whenever the selection moves, [`loading`] loads the files of audio and
+//! video cues and tries again those that could not be played,
+//! [`show`](mod@show) opens and saves shows and keeps their unsaved changes,
+//! [`stage`] opens the stage window and keeps the pictures it shows,
+//! [`link`] opens the links of the help page, and [`subscription`] listens
+//! for the events that become messages.  The key bindings follow the
+//! configuration file as it changes, through
 //! [`keymap::config::watch`](fn@keymap::config::watch).
 
+mod cinq;
 mod editing;
 mod keys;
 mod link;
@@ -23,76 +26,20 @@ mod loading;
 mod navigation;
 mod scroll;
 mod show;
+mod stage;
 mod subscription;
 #[cfg(test)]
 mod tests;
 
-use std::{
-    path::{Path, PathBuf},
-    thread,
-};
+use std::thread;
 
-use iced::{Subscription, Task, futures::channel::oneshot};
+use iced::{Task, futures::channel::oneshot};
 
-use super::{App, Cinq, Message, keymap, view};
-use crate::back::{Audio, Command, Edit, TICK, parse_level};
+use super::{App, Message};
+use crate::back::{Command, Edit, TICK, parse_level};
 use link::{edit_config, open_link};
 pub(super) use show::{Keeper, Read, Saved, Show};
-
-impl Cinq {
-    /// Opens the audio device, reads the key bindings from `config`, and
-    /// starts opening the show in `show`, or a new show without one, which
-    /// the window opens without waiting for
-    pub(super) fn new(config: Option<&Path>, show: Option<PathBuf>) -> (Self, Task<Message>) {
-        let audio = Audio::open();
-        let unsaved_directory = show::unsaved_directory();
-        let cinq = Self {
-            app: App {
-                audio_error: audio.error().map(str::to_owned),
-                config: keymap::config::load(config),
-                unsaved_directory: unsaved_directory.clone(),
-                ..App::default()
-            },
-            audio,
-            keeper: Keeper::new(unsaved_directory.clone()),
-        };
-        (cinq, show::open(show, unsaved_directory))
-    }
-
-    /// Applies one message, lets the sound output catch up with the result,
-    /// keeps the unsaved changes of the show, and starts loading any file
-    /// that the message named.  This is the only place where state is
-    /// replaced, and the sound output and the keeper of unsaved changes are
-    /// the only parts it calls that have side effects; everything else
-    /// builds new values.  Taking the state out of `self` instead of cloning
-    /// it keeps updates free of copies.
-    pub(super) fn update(&mut self, message: Message) -> Task<Message> {
-        let (app, task) = std::mem::take(&mut self.app).next(message);
-        let (app, load) = App {
-            workspace: self.audio.sync(app.workspace),
-            file_problem: self.keeper.keep(&app.show).or(app.file_problem),
-            ..app
-        }
-        .load();
-        self.app = app;
-        Task::batch([task, load])
-    }
-
-    pub(super) fn view(&self) -> iced::Element<'_, Message> {
-        view::view(&self.app)
-    }
-
-    /// Returns the title of the window: the name of the show, marked while
-    /// it has unsaved changes, and the name of the program
-    pub(super) fn title(&self) -> String {
-        let show = &self.app.show;
-        format!("{}{} - cinq", show.name(), show.mark())
-    }
-
-    pub(super) fn subscription(&self) -> Subscription<Message> {
-        self.app.subscription()
-    }
-}
+pub(super) use stage::Stage;
 
 impl App {
     /// Returns the state along with the task that `task` starts from it
@@ -125,9 +72,11 @@ impl App {
             Message::Save => return self.with_task(Self::save),
             Message::SaveAs => return self.with_task(Self::choose_file),
             Message::SaveTo(file) => return self.with_task(|app| app.save_to(file)),
-            Message::ChooseSound(id) => return self.with_task(|app| app.choose_sound(id)),
+            Message::ChooseFile(id) => return self.with_task(|app| app.choose_cue_file(id)),
             Message::OpenLink(target) => return self.opening(move || open_link(&target)),
             Message::EditConfig(file) => return self.opening(move || edit_config(&file)),
+            Message::Fullscreen => return self.with_task(Self::fullscreen),
+            Message::Closed(window) => return self.closed(window),
             // GO and Panic close the help page, so that the show is in view
             // as it runs or stops, and a selection that GO moves scrolls
             // into view, while the list stays put otherwise
@@ -147,10 +96,14 @@ impl App {
             Message::PauseAll => self.send(Command::Pause(true)),
             Message::ResumeAll => self.send(Command::Pause(false)),
             Message::Stop(id) => self.send(Command::Stop(id)),
+            // Ticks of the timer and the frames of the stage window may come
+            // out of order, and an earlier one counts no time
             Message::Tick(now) => {
-                let elapsed = self.last_tick.map_or(TICK, |last| now - last);
+                let elapsed = self
+                    .last_tick
+                    .map_or(TICK, |last| now.saturating_duration_since(last));
                 Self {
-                    last_tick: Some(now),
+                    last_tick: Some(self.last_tick.map_or(now, |last| last.max(now))),
                     ..self.send(Command::Tick(elapsed.as_secs_f64()))
                 }
             }
@@ -183,7 +136,7 @@ impl App {
                 }
                 .send_all(edit)
             }
-            Message::SoundChosen(id, path) => {
+            Message::FileChosen(id, path) => {
                 let file = self.workspace.file_name_of(&path);
                 let playing = self.workspace.cue(id).map(|cue| cue.playing(file));
                 self.send_all(playing.map(|edit| Command::Edit(id, edit)))

@@ -19,7 +19,7 @@ use crate::{
 };
 
 /// Inspector field, one per row of a form, which goes by its name, apart
-/// from the target of an audio cue, which is its file
+/// from the target of an audio or video cue, which is its file
 #[derive(Debug, Clone, Copy, IntoStaticStr)]
 pub(super) enum Field {
     Number,
@@ -39,7 +39,7 @@ pub(super) enum Field {
 impl Field {
     pub(super) fn label(self, cue: &Cue) -> &'static str {
         match self {
-            Field::Target if cue.kind == Kind::Audio => "File",
+            Field::Target if cue.kind.plays_file() => "File",
             _ => self.into(),
         }
     }
@@ -48,7 +48,7 @@ impl Field {
     /// locked or when the value does not apply to the cue, such as the
     /// post-wait of an auto-follow cue.  Values that come from elsewhere,
     /// such as how long an audio cue plays, show in a disabled field too.
-    /// The sound file of an audio cue can be typed, or chosen in the
+    /// The file of an audio or video cue can be typed, or chosen in the
     /// desktop's file chooser, and a time that reads as no time stands out.
     pub(super) fn input<'a>(self, app: &'a App, cue: &'a Cue) -> Element<'a, Message> {
         let id = cue.id;
@@ -69,9 +69,9 @@ impl Field {
             Field::Number => field(&cue.number, true, Edit::Number),
             Field::Name => field(&cue.name, true, Edit::Name),
             Field::Target => match cue.kind {
-                Kind::Audio => row![
+                Kind::Audio | Kind::Video => row![
                     field(&cue.file, true, Edit::File),
-                    button("Choose").on_press_maybe(editable.then_some(Message::ChooseSound(id))),
+                    button("Choose").on_press_maybe(editable.then_some(Message::ChooseFile(id))),
                 ]
                 .spacing(SPACING)
                 .into(),
@@ -126,6 +126,7 @@ impl Field {
     fn placeholder(self, cue: &Cue) -> &'static str {
         match self {
             Field::Target if cue.kind == Kind::Audio => "path of a sound file",
+            Field::Target if cue.kind == Kind::Video => "path of a video file",
             Field::PreWait | Field::Duration | Field::PostWait | Field::Start => "0",
             Field::End => "end of file",
             _ => "",

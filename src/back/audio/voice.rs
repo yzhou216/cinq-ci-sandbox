@@ -2,7 +2,7 @@
 //
 // SPDX-License-Identifier: GPL-3.0-or-later
 
-//! Sound of one run of an audio cue
+//! Sound of one run of an audio or video cue
 
 use std::{path::Path, time::Duration};
 
@@ -22,7 +22,7 @@ use crate::back::{Active, Clip, TICK};
 /// the next.
 const GLIDE: Duration = TICK.saturating_mul(2);
 
-/// Sound of one run of an audio cue
+/// Sound of one run of an audio or video cue
 pub(super) struct Voice {
     pub(super) run: u32,
     sound: StreamingSoundHandle<FromFileError>,

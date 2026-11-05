@@ -20,8 +20,12 @@ Minimal cue-based show controller, the
 - **Keyboard first.**  vi and CUA keymaps, rebindable in a file that reloads
   as you save it.  GO and Panic act from anywhere, even halfway through
   another key sequence.
-- **Audio cues** in WAV, FLAC, Ogg Vorbis, or MP3, with start and end times,
-  seamless loops, and levels that change while they play.
+- **Audio cues** in WAV, FLAC, Ogg Vorbis, MP3, or AAC, with start and end
+  times, seamless loops, and levels that change while they play.
+- **Video cues** in H.264 and MP4, with their sound, which cinq decodes
+  itself with Cisco's openh264 rather than handing them to another player,
+  on a stage window that goes fullscreen.  Fades and Panic fade the picture
+  to black along with the sound.
 - **Fade, stop, wait, and memo cues**, chained by auto-continue and
   auto-follow, with pre-waits and post-waits.
 - **Panic** fades everything out in a second, and a second Panic stops at
@@ -40,6 +44,9 @@ Minimal cue-based show controller, the
 
 - Cargo
 - [scdoc](https://git.sr.ht/~sircmpwn/scdoc)
+- A C++ compiler, for openh264, which the build compiles from its source
+- [NASM](https://www.nasm.us/), optionally, for the faster x86 code of
+  openh264
 
 #### GNU/Linux and the BSDs
 

@@ -66,8 +66,9 @@ impl Workspace {
         Self { active, ..self }.started().without_finished()
     }
 
-    /// Fades out every playing audio cue and stops everything else.  A
-    /// panic while an earlier one is still fading stops everything at once.
+    /// Fades out every playing audio and video cue and stops everything
+    /// else.  A panic while an earlier one is still fading stops everything
+    /// at once.
     pub(super) fn panic(self) -> Self {
         let fading = self
             .active
@@ -77,6 +78,7 @@ impl Workspace {
             by: None,
             to: SILENCE,
             remaining: PANIC_FADE,
+            length: PANIC_FADE,
             then_stop: true,
         };
         let active = if fading {
@@ -84,7 +86,7 @@ impl Workspace {
         } else {
             self.active
                 .iter()
-                .filter(|active| !active.paused && active.sounding())
+                .filter(|active| !active.paused && active.playing())
                 .map(|active| Active {
                     fade: Some(fade),
                     ..*active
@@ -104,8 +106,9 @@ impl Workspace {
     }
 
     /// Begins the action of every cue whose pre-wait is over.  Fade cues
-    /// start fading their target and stop cues stop theirs.  Audio cues need
-    /// nothing here, because making sound is the job of the audio output.
+    /// start fading their target and stop cues stop theirs.  Audio and video
+    /// cues need nothing here, because making sound and pictures is the job
+    /// of the audio and video output.
     fn started(self) -> Self {
         let due = self.active_where(Active::due);
         let active = self.active.into_iter().map(Active::begun).collect();
@@ -115,7 +118,7 @@ impl Workspace {
 
     /// Carries out the effect of a fade or stop cue on its target, unless
     /// an effect earlier in the same tick has stopped the cue.  A fade acts
-    /// only on a target that is sounding, takes over from a fade already on
+    /// only on a target that is playing, takes over from a fade already on
     /// it only where [`Fade::yields_to`] allows, and starts as far along as
     /// the tick has passed the end of the pre-wait.
     fn with_effect_of(self, id: CueId) -> Self {
@@ -124,7 +127,7 @@ impl Workspace {
         };
         match fired.effect {
             Effect::Fade { target, fade } => self.with_active(target, |active| {
-                if active.sounding() && active.fade.is_none_or(|current| current.yields_to(&fade)) {
+                if active.playing() && active.fade.is_none_or(|current| current.yields_to(&fade)) {
                     Active {
                         fade: Some(fade),
                         ..active
@@ -135,7 +138,7 @@ impl Workspace {
                 }
             }),
             Effect::Stop(target) => self.stopped(target),
-            Effect::Sound(_) | Effect::Nothing => self,
+            Effect::Sound(_) | Effect::Video { .. } | Effect::Nothing => self,
         }
     }
 

@@ -32,8 +32,8 @@ impl App {
         }
     }
 
-    /// Starts saving the show in `file`, with the relative paths of its
-    /// sound files going from the directory of the file
+    /// Starts saving the show in `file`, with the relative paths of the
+    /// files of its cues going from the directory of the file
     pub(in crate::front::update) fn save_to(&self, file: PathBuf) -> Task<Message> {
         let show = self.show.id;
         let text = self.workspace.show(file.parent());

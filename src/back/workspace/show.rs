@@ -10,8 +10,9 @@
 //! whether a fade stops its target, which it holds for every cue whose kind
 //! uses them.  Cues keep their identities, by which fade and stop cues name
 //! their targets.  What playback and loading find, such as the cue on
-//! standby, the cues that run, and how long each sound file plays, belongs
-//! to the session rather than to the show, and the file leaves it out.
+//! standby, the cues that run, and how long each sound or video file plays,
+//! belongs to the session rather than to the show, and the file leaves it
+//! out.
 
 use std::path::{Path, PathBuf};
 
@@ -68,8 +69,8 @@ struct CueFile {
 }
 
 impl Workspace {
-    /// Reads a show from the text of its file, finding the sound files of
-    /// its cues from `directory`.  Each list starts with standby on its
+    /// Reads a show from the text of its file, finding the files of its
+    /// cues from `directory`.  Each list starts with standby on its
     /// first cue, and a file without lists holds one empty list, as every
     /// show does.  A file in which two cues share an identity cannot be
     /// read, nor can one with a level that no cue could be given, since a
@@ -95,8 +96,8 @@ impl Workspace {
     }
 
     /// Returns the text of the show as a file in `directory` holds it, with
-    /// the relative paths of sound files going from that directory, or as
-    /// absolute paths without one
+    /// the relative paths of the files of cues going from that directory,
+    /// or as absolute paths without one
     pub fn show(&self, directory: Option<&Path>) -> String {
         let show = ShowFile {
             lists: self
@@ -115,7 +116,8 @@ impl Workspace {
         toml::to_string(&show).expect("TOML holds every setting of a show")
     }
 
-    /// Returns the sound file of `cue` as a file in `directory` names it:
+    /// Returns the file that `cue` plays as a show file in `directory`
+    /// names it:
     /// an absolute path as it is, and a relative one from `directory`
     /// rather than from the directory of the workspace, or as an absolute
     /// path without one
@@ -142,20 +144,20 @@ impl ListFile {
 }
 
 impl CueFile {
-    /// Returns a cue as a file holds it, where it names its sound file as
-    /// `file`
+    /// Returns a cue as a file holds it, where it names the file it plays
+    /// as `file`
     fn of(cue: &Cue, file: String) -> Self {
         let set = |seconds: f32| Some(seconds).filter(|&seconds| seconds > 0.0);
-        let audio = cue.kind == Kind::Audio;
+        let plays = cue.kind.plays_file();
         Self {
             id: cue.id.0,
             number: cue.number.clone(),
             kind: cue.kind,
             name: cue.name.clone(),
             file,
-            start: set(cue.start.value()).filter(|_| audio),
-            end: cue.end.time().filter(|_| audio),
-            looping: audio && cue.looping,
+            start: set(cue.start.value()).filter(|_| plays),
+            end: cue.end.time().filter(|_| plays),
+            looping: plays && cue.looping,
             target: cue.target.map(|target| target.0),
             pre_wait: set(cue.pre_wait.value()),
             duration: cue.kind.has_duration().then(|| cue.duration.value()),

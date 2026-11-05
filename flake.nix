@@ -90,21 +90,31 @@
               '';
             };
           # cinq for Windows 10 and newer on the processor of `cross`, the
-          # Nixpkgs of a MinGW system, whose LLVM links it.  The C runtime
-          # and the unwinder go into the program, so that it needs no DLL
+          # Nixpkgs of a MinGW system, whose LLVM compiles the C and C++ of
+          # the crates and links the program.  The C runtime, the unwinder,
+          # and the C++ library go into the program, so that it needs no DLL
           # that Windows lacks.
           windows =
             cross:
             let
               inherit (cross.stdenv) cc hostPlatform;
               target = hostPlatform.rust.rustcTarget;
-              variable = "CARGO_TARGET_${lib.toUpper (builtins.replaceStrings [ "-" ] [ "_" ] target)}";
+              underscored = builtins.replaceStrings [ "-" ] [ "_" ] target;
+              variable = "CARGO_TARGET_${lib.toUpper underscored}";
+              # C++ library without its DLL, which the linker would take first
+              staticCxx = pkgs.runCommand "libcxx-static" { } ''
+                mkdir -p "$out/lib"
+                ln -s ${cross.llvmPackages.libcxx}/lib/{libc++,libc++abi}.a "$out/lib"
+              '';
             in
             crossBuilt {
               inherit target;
               env = {
                 "${variable}_LINKER" = "${cc}/bin/${cc.targetPrefix}cc";
-                "${variable}_RUSTFLAGS" = "-C target-feature=+crt-static";
+                "${variable}_RUSTFLAGS" = "-C target-feature=+crt-static -L native=${staticCxx}/lib";
+                "CC_${underscored}" = "${cc}/bin/${cc.targetPrefix}cc";
+                "CXX_${underscored}" = "${cc}/bin/${cc.targetPrefix}c++";
+                "AR_${underscored}" = "${cc.bintools.bintools}/bin/${cc.targetPrefix}ar";
               };
               install = release: ''install -D ${release}/cinq.exe "$out/bin/cinq.exe"'';
             };
@@ -133,8 +143,9 @@
               patchelf --set-interpreter ${loader} --remove-rpath "$out/usr/bin/cinq"
             '';
           # Package of portable cinq in the format of nfpm's `packager`, which
-          # depends on glibc, ALSA, and the libraries that cinq loads, apart
-          # from those of the GPU, without which it draws in software
+          # depends on glibc, ALSA, the C++ library, and the libraries that
+          # cinq loads, apart from those of the GPU, without which it draws
+          # in software
           nfpm =
             packager:
             pkgs.runCommand "${crate.name}-${packager}"
@@ -163,6 +174,7 @@
                     deb.depends = [
                       "libc6 (>= ${glibc})"
                       "libasound2t64 | libasound2"
+                      "libstdc++6"
                       "libdbus-1-3"
                       "libwayland-client0"
                       "libxkbcommon0"
@@ -170,6 +182,7 @@
                     rpm.depends = [
                       "glibc >= ${glibc}"
                       "alsa-lib"
+                      "libstdc++"
                       "dbus-libs"
                       "libwayland-client"
                       "libxkbcommon"
@@ -177,6 +190,7 @@
                     archlinux.depends = [
                       "glibc"
                       "alsa-lib"
+                      "gcc-libs"
                       "dbus"
                       "wayland"
                       "libxkbcommon"
@@ -269,6 +283,10 @@
               env = {
                 SDKROOT = "${pkgs.apple-sdk.src}";
                 CARGO_TARGET_AARCH64_APPLE_DARWIN_LINKER = "rust-lld";
+                # Compilers of the C and C++ of the crates, against the SDK
+                CC_aarch64_apple_darwin = "${pkgs.llvmPackages.clang-unwrapped}/bin/clang";
+                CXX_aarch64_apple_darwin = "${pkgs.llvmPackages.clang-unwrapped}/bin/clang++";
+                AR_aarch64_apple_darwin = "${pkgs.llvmPackages.llvm}/bin/llvm-ar";
               };
               install = release: ''
                 install -D ${release}/cinq "$out/bin/cinq"

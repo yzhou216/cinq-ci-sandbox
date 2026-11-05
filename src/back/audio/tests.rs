@@ -2,8 +2,8 @@
 //
 // SPDX-License-Identifier: GPL-3.0-or-later
 
-//! Tests of loading the files of audio cues, and of making their sounds
-//! ready ahead, which need no audio device
+//! Tests of making the sounds of audio cues ready ahead, which need no
+//! audio device
 
 use std::{
     fs,
@@ -15,7 +15,6 @@ use std::{
 use tempfile::TempDir;
 
 use super::{
-    Load, load_files,
     preload::{Ask, Preloaded, Preloader, Wanted},
     upcoming,
 };
@@ -37,7 +36,10 @@ fn loaded(cues: Vec<Cue>) -> Workspace {
         .map(|cue| Command::Loaded {
             cue: cue.id,
             file: cue.file.clone(),
-            media: Media::Loaded { duration: 10.0 },
+            media: Media::Loaded {
+                duration: 10.0,
+                sound: true,
+            },
         })
         .collect();
     loads.into_iter().fold(workspace, Workspace::apply)
@@ -123,20 +125,6 @@ fn made(
 }
 
 #[test]
-fn every_cue_that_names_a_missing_file_learns_that_it_is_not_found() {
-    let workspace =
-        Workspace::new(vec![CueList::new("Main", vec![audio(1), audio(2)])]).directory("/nowhere");
-    let found = load_files(Load::all(&workspace, workspace.unloaded()));
-    let not_found = |id| {
-        found.iter().any(|command| {
-            matches!(command, Command::Loaded { cue, media: Media::Failed(reason), .. }
-                if *cue == CueId(id) && reason == "file not found")
-        })
-    };
-    assert!(not_found(1) && not_found(2), "{found:?}");
-}
-
-#[test]
 fn sounds_made_ready_are_those_of_the_next_go_and_of_runs_yet_to_sound() {
     let continuing = Cue {
         advance: Advance::Continue,
@@ -149,6 +137,27 @@ fn sounds_made_ready_are_those_of_the_next_go_and_of_runs_yet_to_sound() {
     assert_eq!(upcoming_cues(&fired), [2, 3]);
     let wanted = upcoming(&fired).remove(0).wanted;
     assert_eq!(wanted.path, PathBuf::from("/show/sound.wav"));
+}
+
+#[test]
+fn sound_of_a_video_cue_is_made_ready_unless_its_file_holds_none() {
+    let video = |id: u32| {
+        Cue::new(CueId(id), id.to_string(), Kind::Video, "Movie")
+            .file("movie.mp4")
+            .advance(Advance::Continue)
+            .build()
+    };
+    let workspace = loaded(vec![video(1), video(2)]);
+    assert_eq!(upcoming_cues(&workspace), [1, 2]);
+    let silent = Command::Loaded {
+        cue: CueId(2),
+        file: "movie.mp4".to_owned(),
+        media: Media::Loaded {
+            duration: 10.0,
+            sound: false,
+        },
+    };
+    assert_eq!(upcoming_cues(&workspace.apply(silent)), [1]);
 }
 
 #[test]

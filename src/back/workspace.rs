@@ -6,17 +6,19 @@
 //!
 //! Playback here is bookkeeping without side effects: fired cues count
 //! time, fades move levels, and stop cues end other cues.  The audio output
-//! in [`super::Audio`] turns the result into sound.  A [`Command`] asks for
+//! in [`super::Audio`] turns the result into sound, and the video output in
+//! [`super::Video`] into pictures.  A [`Command`] asks for
 //! each change, and an [`Active`] records each cue that GO has fired.  The
 //! rules of playback live in [`playback`] and [`stopping`], those that
-//! change the cue lists in [`editing`], undo and redo in [`history`], and
-//! show files in [`show`].
+//! change the cue lists in [`editing`], undo and redo in [`history`], show
+//! files in [`show`], and why cues cannot play in [`problems`].
 
 mod active;
 mod command;
 mod editing;
 mod history;
 mod playback;
+mod problems;
 mod show;
 mod stopping;
 #[cfg(test)]
@@ -29,7 +31,7 @@ pub use command::{Command, Place};
 pub use history::{Change, Turn};
 
 use crate::back::{
-    Cue, CueId, CueList, Kind, Media, Problem,
+    Cue, CueId, CueList,
     items::{replaced, replaced_where},
 };
 use history::History;
@@ -109,13 +111,13 @@ impl Workspace {
         }
     }
 
-    /// Returns where the sound file that `cue` names is, or none when it
-    /// names no file
+    /// Returns where the file that `cue` names is, or none when it names no
+    /// file
     pub(in crate::back) fn path(&self, cue: &Cue) -> Option<PathBuf> {
         cue.file_name().map(|name| self.directory.join(name))
     }
 
-    /// Returns the directory to look in for a sound file for `cue`: the
+    /// Returns the directory to look in for a file for `cue` to play: the
     /// directory of the file it plays now, or else the one that relative
     /// paths start from
     pub fn sound_directory(&self, cue: &Cue) -> PathBuf {
@@ -126,10 +128,10 @@ impl Workspace {
             .to_owned()
     }
 
-    /// Returns the name by which a cue plays the sound file at `path`: its
-    /// path from the directory that relative paths start from, when the
-    /// file is in that directory, so that the show and its sounds can move
-    /// together, or else the path as it is
+    /// Returns the name by which a cue plays the file at `path`: its path
+    /// from the directory that relative paths start from, when the file is
+    /// in that directory, so that the show and its files can move together,
+    /// or else the path as it is
     pub fn file_name_of(&self, path: &Path) -> String {
         path.strip_prefix(&self.directory)
             .unwrap_or(path)
@@ -141,7 +143,8 @@ impl Workspace {
         &self.lists
     }
 
-    /// Returns the cues that GO has fired and that have not finished yet
+    /// Returns the cues that GO has fired and that have not finished yet,
+    /// in the order that GO fired them, the latest last
     pub fn active(&self) -> &[Active] {
         &self.active
     }
@@ -189,44 +192,6 @@ impl Workspace {
             .filter(|active| test(active))
             .map(|active| active.id)
             .collect()
-    }
-
-    /// Returns the reason a cue cannot play, if there is one
-    pub fn problem<'a>(&self, cue: &'a Cue) -> Option<Problem<'a>> {
-        match (cue.kind, &cue.media) {
-            (Kind::Audio, _) if cue.file_name().is_none() => Some(Problem::NoFile),
-            (Kind::Audio, Media::Unloaded) => Some(Problem::NotLoaded),
-            (Kind::Audio, Media::Failed(reason)) => Some(Problem::LoadFailed(reason)),
-            (Kind::Audio, Media::Loaded { .. }) if cue.clip().is_none() => Some(Problem::EmptyClip),
-            (Kind::Fade | Kind::Stop, _) => match self.target(cue) {
-                Some(target) if cue.can_target(target) => None,
-                _ => Some(Problem::NoTarget),
-            },
-            _ => None,
-        }
-    }
-
-    /// Returns every cue that cannot play, with the reason
-    pub fn problems(&self) -> impl Iterator<Item = (&Cue, Problem<'_>)> {
-        self.cues()
-            .filter_map(|cue| self.problem(cue).map(|problem| (cue, problem)))
-    }
-
-    /// Returns the audio cues whose file has not been loaded
-    pub fn unloaded(&self) -> impl Iterator<Item = &Cue> {
-        self.files_where(|media| *media == Media::Unloaded)
-    }
-
-    /// Returns the audio cues whose file could not be played
-    pub fn failed(&self) -> impl Iterator<Item = &Cue> {
-        self.files_where(|media| matches!(media, Media::Failed(_)))
-    }
-
-    /// Returns the audio cues that name a file and whose media passes `test`
-    fn files_where(&self, test: fn(&Media) -> bool) -> impl Iterator<Item = &Cue> {
-        self.cues().filter(move |cue| {
-            cue.kind == Kind::Audio && test(&cue.media) && cue.file_name().is_some()
-        })
     }
 
     /// Returns the workspace with a command applied.  Commands that change

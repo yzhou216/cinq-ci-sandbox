@@ -92,7 +92,8 @@ pub(super) fn view(app: &App, width: f32) -> Element<'_, Message> {
     .into()
 }
 
-/// Shows a running cue with its progress, and the level of an audio cue
+/// Shows a running cue with its progress, and the level of an audio or
+/// video cue that sounds
 fn active_cue<'a>(active: &Active, cue: &Cue) -> Element<'a, Message> {
     column![
         row![

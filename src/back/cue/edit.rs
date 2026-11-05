@@ -12,16 +12,17 @@ pub enum Edit {
     Number(String),
     Name(String),
     File(String),
-    /// Sound file of an audio cue together with the name it gives the cue
+    /// File of an audio or video cue together with the name it gives the
+    /// cue, as choosing the file makes
     Sound {
         file: String,
         name: String,
     },
-    /// Time in its sound file at which an audio cue starts
+    /// Time in its file at which an audio or video cue starts
     Start(Seconds),
-    /// Time in its sound file at which an audio cue ends
+    /// Time in its file at which an audio or video cue ends
     End(Seconds),
-    /// Whether an audio cue loops
+    /// Whether an audio or video cue loops
     Loop(bool),
     /// Cue that a fade or stop cue acts on, or none
     Target(Option<CueId>),

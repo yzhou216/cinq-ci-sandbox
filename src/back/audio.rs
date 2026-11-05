@@ -2,36 +2,30 @@
 //
 // SPDX-License-Identifier: GPL-3.0-or-later
 
-//! Sound output and the loading of sound files, where the back end has
-//! side effects
+//! Sound output, where the back end has side effects
 //!
 //! [`Audio::sync`] runs after every change to the workspace and makes the
-//! sound match it: it starts the audio cues that the workspace has
-//! sounding, follows their level and pause state, and stops the sounds
+//! sound match it: it starts the audio and video cues that the workspace
+//! has sounding, follows their level and pause state, and stops the sounds
 //! whose cue has stopped.  The workspace stays the only record of what
 //! should be heard, so a sound that cannot start goes back to it as a file
 //! that cannot be played.  Ahead of that, a thread of its own makes ready
-//! the sounds that runs may start next, so that GO waits on no file.
-//! [`load_files`] reads the files that audio cues name, which can block, so
-//! the interface runs it off its own thread.
+//! the sounds that runs may start next, so that GO waits on no file.  The
+//! sound of a video file plays as that of a sound file does, from the
+//! file's sound track.
 
 mod preload;
 #[cfg(test)]
 mod tests;
 mod voice;
 
-use std::{
-    collections::HashMap,
-    io,
-    path::{Path, PathBuf},
-};
+use std::{collections::HashMap, io, path::Path};
 
 use itertools::Itertools;
 use kira::{
     AudioManager, AudioManagerSettings, DefaultBackend,
     sound::{FromFileError, streaming::StreamingSoundData},
 };
-use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 
 use super::{Active, Clip, Command, Cue, CueId, Media, Problem, Workspace};
 use preload::{Ask, Preloader, Wanted};
@@ -39,13 +33,13 @@ use voice::Voice;
 
 /// Endings of the names of the sound files that the sound output plays,
 /// which the features of kira in `Cargo.toml` decide
-pub const SOUND_FILES: [&str; 4] = ["flac", "mp3", "ogg", "wav"];
+pub const SOUND_FILES: [&str; 5] = ["flac", "m4a", "mp3", "ogg", "wav"];
 
 /// Sound output for a workspace
 pub struct Audio {
     /// Audio device, or the reason it could not be opened
     output: Result<AudioManager, String>,
-    /// Sounds of the audio cues that are sounding
+    /// Sounds of the audio and video cues that are sounding
     voices: HashMap<CueId, Voice>,
     /// Sounds that runs may start next, made ready ahead
     preloader: Preloader,
@@ -81,10 +75,10 @@ impl Audio {
         failures.into_iter().fold(workspace, Workspace::apply)
     }
 
-    /// Starts, follows, and stops sounds, so that each sounding audio cue
-    /// plays its clip at the level and pause state of its run, and nothing
-    /// else plays.  Returns the commands that record the sounds that could
-    /// not start.
+    /// Starts, follows, and stops sounds, so that each sounding audio or
+    /// video cue plays its clip at the level and pause state of its run,
+    /// and nothing else plays.  Returns the commands that record the sounds
+    /// that could not start.
     fn play(&mut self, workspace: &Workspace) -> Vec<Command> {
         let Ok(manager) = &mut self.output else {
             return Vec::new();
@@ -155,6 +149,7 @@ fn upcoming(workspace: &Workspace) -> Vec<Ask> {
         .lists()
         .iter()
         .flat_map(|list| workspace.next_go(list))
+        .filter(|(cue, _)| cue.sounds())
         .filter_map(|(cue, _)| Some((cue, cue.clip()?, cue.level)));
     fired
         .chain(next)
@@ -170,68 +165,19 @@ fn upcoming(workspace: &Workspace) -> Vec<Ask> {
         .collect()
 }
 
-/// File of an audio cue to load: the file as the cue names it, and where
-/// it is
-#[derive(Debug)]
-pub struct Load {
-    cue: CueId,
-    file: String,
-    path: PathBuf,
-}
-
-impl Load {
-    /// Returns what loading the files that `cues` name takes, finding each
-    /// file as `workspace` does
-    pub fn all<'a>(workspace: &Workspace, cues: impl IntoIterator<Item = &'a Cue>) -> Vec<Self> {
-        cues.into_iter()
-            .filter_map(|cue| {
-                Some(Self {
-                    cue: cue.id,
-                    file: cue.file.clone(),
-                    path: workspace.path(cue)?,
-                })
-            })
-            .collect()
-    }
-}
-
-/// Reads the files of `loads`, and returns the commands that record what
-/// reading found.  Each distinct file is read once, and the files are read
-/// in parallel, which shortens opening a large show whose files are not
-/// cached yet.  Reading can block on a slow drive.
-pub fn load_files(loads: Vec<Load>) -> Vec<Command> {
-    // Collected first, so that rayon reads no file or a single one on this
-    // thread instead of waking its pool
-    let paths: Vec<PathBuf> = loads
-        .iter()
-        .map(|load| &load.path)
-        .unique()
-        .cloned()
-        .collect();
-    let found: HashMap<&PathBuf, Media> =
-        paths.par_iter().map(|path| (path, probe(path))).collect();
-    loads
-        .into_iter()
-        .map(|load| Command::Loaded {
-            media: found[&load.path].clone(),
-            cue: load.cue,
-            file: load.file,
-        })
-        .collect()
-}
-
-/// Reads how long a sound file plays, or why it cannot be played.  This
-/// opens the file and reads its format without decoding the sound.
-fn probe(file: &Path) -> Media {
+/// Reads how long the sound of a file plays, or why it cannot be played.
+/// This opens the file and reads its format without decoding the sound.
+pub(super) fn probe(file: &Path) -> Media {
     match StreamingSoundData::from_file(file) {
         Ok(data) => Media::Loaded {
             duration: data.duration().as_secs_f32(),
+            sound: true,
         },
         Err(error) => Media::Failed(reason(error)),
     }
 }
 
-/// Describes why a sound file cannot be played
+/// Describes why the sound of a file cannot be played
 fn reason(error: FromFileError) -> String {
     match error {
         FromFileError::IoError(error) if error.kind() == io::ErrorKind::NotFound => {

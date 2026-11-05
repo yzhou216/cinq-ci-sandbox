@@ -41,6 +41,7 @@ pub enum Action {
     Open,
     Save,
     SaveAs,
+    Fullscreen,
     Help,
     CloseHelp,
 }
@@ -78,6 +79,7 @@ impl Action {
             Action::Open => "Open a show",
             Action::Save => "Save the show",
             Action::SaveAs => "Save the show in another file",
+            Action::Fullscreen => "Toggle fullscreen on the stage window",
             Action::Help => "Show or hide this help",
             Action::CloseHelp => "Hide this help",
         }
@@ -146,6 +148,7 @@ impl Action {
             Action::Open => Message::Open,
             Action::Save => Message::Save,
             Action::SaveAs => Message::SaveAs,
+            Action::Fullscreen => Message::Fullscreen,
             Action::Help => Message::ToggleHelp,
             Action::CloseHelp => Message::CloseHelp,
         }

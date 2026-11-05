@@ -1,0 +1,216 @@
+# SPDX-FileCopyrightText: 2026 Yiyu Zhou <yiyu@yiyuzhou.io>
+#
+# SPDX-License-Identifier: GPL-3.0-or-later
+
+# Plays a video cue on GNU/Linux, Darwin, and Windows, then fades it out,
+# and records the screen of each
+on:
+  push:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  media:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@main
+      - uses: wimpysworld/nothing-but-nix@main
+      - uses: cachix/install-nix-action@master
+        with:
+          github_access_token: ${{ secrets.GITHUB_TOKEN }}
+      - run: |
+          mkdir show
+          nix shell nixpkgs#ffmpeg -c ffmpeg -loglevel error -f lavfi -i testsrc2=size=1280x720:rate=30 -f lavfi -i sine=frequency=440 -t 12 -c:v libx264 -profile:v high -pix_fmt yuv420p -c:a aac show/test.mp4
+          printf '[[list]]\nname = "Main"\n\n[[list.cue]]\nid = 1\nnumber = "1"\nkind = "video"\nname = "Test pattern"\nfile = "test.mp4"\n\n[[list.cue]]\nid = 2\nnumber = "2"\nkind = "fade"\nname = "Fade out"\ntarget = 1\nduration = 2.0\n' > show/video.cinq.toml
+          nix build .#x86_64-windows-cross .#aarch64-windows-cross
+          mkdir x86_64 aarch64
+          cp result/bin/cinq.exe x86_64/
+          cp result-1/bin/cinq.exe aarch64/
+      - uses: actions/upload-artifact@main
+        with:
+          name: show
+          path: show
+      - uses: actions/upload-artifact@main
+        with:
+          name: x86_64
+          path: x86_64/cinq.exe
+      - uses: actions/upload-artifact@main
+        with:
+          name: aarch64
+          path: aarch64/cinq.exe
+  linux:
+    needs: media
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@main
+      - uses: wimpysworld/nothing-but-nix@main
+      - uses: cachix/install-nix-action@master
+        with:
+          github_access_token: ${{ secrets.GITHUB_TOKEN }}
+      - uses: actions/download-artifact@main
+        with:
+          name: show
+          path: show
+      - run: nix build && nix build --out-link tools nixpkgs#sway nixpkgs#wf-recorder nixpkgs#wtype nixpkgs#grim
+      - run: |
+          export PATH=$(for tool in tools*; do printf '%s/bin:' "$(readlink -f $tool)"; done)$PATH
+          export XDG_RUNTIME_DIR=$(mktemp -d) WLR_BACKENDS=headless WLR_RENDERER=pixman WLR_LIBINPUT_NO_DEVICES=1
+          printf 'output HEADLESS-1 resolution 1920x1080\n' > sway.config
+          sway -c sway.config > sway.log 2>&1 &
+          sleep 5
+          export WAYLAND_DISPLAY=$(ls "$XDG_RUNTIME_DIR" | grep '^wayland-[0-9]*$' | head -1)
+          (cd show && timeout -k 5 60 ../result/bin/cinq video.cinq.toml > ../cinq.log 2>&1 &)
+          sleep 6
+          timeout -k 5 30 wf-recorder -f recording.mp4 > recorder.log 2>&1 &
+          sleep 2
+          grim 1-opened.png
+          wtype -k space
+          sleep 5
+          grim 2-playing.png
+          wtype -k space
+          sleep 1
+          grim 3-fading.png
+          sleep 4
+          grim 4-faded.png
+          pkill -INT wf-recorder; sleep 3
+          echo "--- cinq"; cat cinq.log; echo "--- recorder"; tail -5 recorder.log
+      - if: always()
+        uses: actions/upload-artifact@main
+        with:
+          name: linux
+          path: |
+            *.png
+            recording.mp4
+          if-no-files-found: ignore
+  darwin:
+    needs: media
+    runs-on: macos-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@main
+      - uses: cachix/install-nix-action@master
+        with:
+          github_access_token: ${{ secrets.GITHUB_TOKEN }}
+      - uses: actions/download-artifact@main
+        with:
+          name: show
+          path: show
+      - run: nix build
+      - run: |
+          open result/Applications/cinq.app --args "$PWD/show/video.cinq.toml"
+          sleep 10
+          screencapture -x 1-opened.png
+          screencapture -v -V 14 recording.mov &
+          sleep 2
+          osascript -e 'tell application "System Events" to keystroke " "' || echo "no keystroke"
+          sleep 5
+          screencapture -x 2-playing.png
+          osascript -e 'tell application "System Events" to keystroke " "' || echo "no keystroke"
+          sleep 1
+          screencapture -x 3-fading.png
+          sleep 4
+          screencapture -x 4-faded.png
+          wait
+          pgrep -lx cinq
+          pkill -x cinq
+      - if: always()
+        uses: actions/upload-artifact@main
+        with:
+          name: darwin
+          path: |
+            *.png
+            recording.mov
+          if-no-files-found: ignore
+  windows:
+    needs: media
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            arch: x86_64
+          - os: windows-11-arm
+            arch: aarch64
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/download-artifact@main
+        with:
+          name: ${{ matrix.arch }}
+      - uses: actions/download-artifact@main
+        with:
+          name: show
+          path: show
+      - shell: pwsh
+        run: |
+          Add-Type -AssemblyName System.Drawing, System.Windows.Forms
+          Add-Type -TypeDefinition @"
+          using System;
+          using System.Runtime.InteropServices;
+          using System.Text;
+          public static class Windows {
+            public delegate bool EnumProc(IntPtr window, IntPtr data);
+            [StructLayout(LayoutKind.Sequential)] public struct Rect { public int Left, Top, Right, Bottom; }
+            [DllImport("user32.dll")] public static extern bool EnumWindows(EnumProc proc, IntPtr data);
+            [DllImport("user32.dll")] public static extern uint GetWindowThreadProcessId(IntPtr window, out uint process);
+            [DllImport("user32.dll", CharSet = CharSet.Unicode)] public static extern int GetWindowText(IntPtr window, StringBuilder text, int length);
+            [DllImport("user32.dll")] public static extern bool IsWindowVisible(IntPtr window);
+            [DllImport("user32.dll")] public static extern bool GetWindowRect(IntPtr window, out Rect rect);
+            [DllImport("user32.dll")] public static extern bool PrintWindow(IntPtr window, IntPtr context, uint flags);
+            [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr window);
+            public static IntPtr Find(uint process, string suffix) {
+              IntPtr found = IntPtr.Zero;
+              EnumWindows((window, data) => {
+                uint owner;
+                GetWindowThreadProcessId(window, out owner);
+                var text = new StringBuilder(256);
+                GetWindowText(window, text, 256);
+                if (owner == process && IsWindowVisible(window) && text.ToString().EndsWith(suffix)) { found = window; return false; }
+                return true;
+              }, IntPtr.Zero);
+              return found;
+            }
+          }
+          "@
+          function Shoot($window, $file) {
+            $rect = New-Object Windows+Rect
+            [Windows]::GetWindowRect($window, [ref]$rect) | Out-Null
+            $shot = New-Object System.Drawing.Bitmap ($rect.Right - $rect.Left), ($rect.Bottom - $rect.Top)
+            $graphics = [System.Drawing.Graphics]::FromImage($shot)
+            $context = $graphics.GetHdc()
+            [Windows]::PrintWindow($window, $context, 2) | Out-Null
+            $graphics.ReleaseHdc($context)
+            $shot.Save($file)
+            $graphics.Dispose()
+            $shot.Dispose()
+          }
+          function Go($window) {
+            [Windows]::SetForegroundWindow($window) | Out-Null
+            Start-Sleep -Milliseconds 300
+            [System.Windows.Forms.SendKeys]::SendWait(" ")
+          }
+          $cinq = Start-Process ./cinq.exe -ArgumentList "video.cinq.toml" -WorkingDirectory "$pwd\show" -PassThru
+          Start-Sleep 10
+          $main = [Windows]::Find($cinq.Id, ".toml - cinq")
+          $stage = [Windows]::Find($cinq.Id, " stage - cinq")
+          "main $main, stage $stage"
+          New-Item -ItemType Directory frames | Out-Null
+          Shoot $main "$pwd\main-1-opened.png"
+          0..119 | ForEach-Object {
+            if ($_ -eq 10) { Go $main }
+            if ($_ -eq 60) { Go $main; Shoot $main "$pwd\main-2-fading.png" }
+            Shoot $stage ("$pwd\frames\stage-{0:d3}.png" -f $_)
+            Start-Sleep -Milliseconds 80
+          }
+          Shoot $main "$pwd\main-3-faded.png"
+          if ($cinq.HasExited) { "cinq exited with $($cinq.ExitCode)"; exit 1 }
+          Stop-Process $cinq
+      - if: always()
+        uses: actions/upload-artifact@main
+        with:
+          name: windows-${{ matrix.arch }}
+          path: |
+            *.png
+            frames
+          if-no-files-found: ignore

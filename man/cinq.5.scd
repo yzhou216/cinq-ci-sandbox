@@ -184,6 +184,9 @@ of the help page.
 |  save_as
 :  Control+S
 :  Control+S
+|  fullscreen
+:  F11
+:  F11
 |  help
 :  ?
 :  F1
@@ -247,8 +250,8 @@ not cut a panic short, while every other key repeats as it is held.
 
 # WHERE KEYS ACT
 
-Keys act on the cue list, apart from the keys typed while one of these has
-the keyboard:
+Keys act on the cue list, whether the main window or the stage window has
+the keyboard, apart from the keys typed while one of these has the keyboard:
 
 A text field of the inspector, or a drop-down list
 	A click gives a text field the keyboard, and the keys of *next_field* and
@@ -372,6 +375,11 @@ page.
 *save_as*
 	Save the show in a file that the file chooser of the desktop picks,
 	which the show goes by from then on.
+
+*fullscreen*
+	Toggle the stage window, which shows the pictures of video cues, between
+	fullscreen and a window, as *cinq-show*(5) describes.
+	It does nothing while the stage window is closed.
 
 *help*
 	Show the help page, or hide it.

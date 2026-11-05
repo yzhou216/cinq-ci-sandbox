@@ -2,8 +2,8 @@
 //
 // SPDX-License-Identifier: GPL-3.0-or-later
 
-//! Loading the files of audio cues, and trying again those that could not
-//! be played
+//! Loading the files of audio and video cues, and trying again those that
+//! could not be played
 //!
 //! Reading a file can block for a long time when its drive is slow or has
 //! gone, so the files are read on a thread of their own.  One load and one
@@ -19,8 +19,8 @@ use crate::{
 };
 
 impl App {
-    /// Starts loading the files that audio cues name and have not loaded,
-    /// unless a load is under way
+    /// Starts loading the files that audio and video cues name and have not
+    /// loaded, unless a load is under way
     pub(super) fn load(self) -> (Self, Task<Message>) {
         let loads = Load::all(&self.workspace, self.workspace.unloaded());
         if self.loading || loads.is_empty() {

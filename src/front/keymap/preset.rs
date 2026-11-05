@@ -63,6 +63,7 @@ impl Preset {
             Action::Open => [&["Control+o"], &["Control+o"]],
             Action::Save => [&["Control+s"], &["Control+s"]],
             Action::SaveAs => [&["Control+S"], &["Control+S"]],
+            Action::Fullscreen => [&["F11"], &["F11"]],
             Action::Help => [&["?"], &["F1"]],
             Action::CloseHelp => [&["q"], &["Control+w"]],
         };

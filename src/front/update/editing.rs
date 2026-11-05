@@ -3,13 +3,14 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 //! Adding, moving, and deleting cues around the selection, choosing the
-//! sound files of audio cues, and undoing and redoing changes to the show
+//! files of audio and video cues, and undoing and redoing changes to the
+//! show
 
 use iced::Task;
 use itertools::Itertools;
 
 use crate::{
-    back::{Change, Command, CueId, Place, SOUND_FILES},
+    back::{Change, Command, CueId, Kind, Place, SOUND_FILES, VIDEO_FILES},
     front::{App, Message},
 };
 
@@ -27,25 +28,31 @@ impl App {
         self.send(add).showing(id, None)
     }
 
-    /// Asks which sound file the audio cue `id` plays, in the desktop's
-    /// file chooser, which starts in the directory of the file that the cue
-    /// plays now, or else in the directory that relative paths start from
-    pub(super) fn choose_sound(&self, id: CueId) -> Task<Message> {
+    /// Asks which file the audio or video cue `id` plays, in the desktop's
+    /// file chooser, which offers the sound files or the video files that
+    /// the cue can play, and starts in the directory of the file that the
+    /// cue plays now, or else in the directory that relative paths start
+    /// from
+    pub(super) fn choose_cue_file(&self, id: CueId) -> Task<Message> {
         let Some(cue) = self.workspace.cue(id) else {
             return Task::none();
         };
+        let (title, filter, files) = match cue.kind {
+            Kind::Video => ("Choose video file", "Video files", VIDEO_FILES.as_slice()),
+            _ => ("Choose sound file", "Sound files", SOUND_FILES.as_slice()),
+        };
         // File choosers on GNU/Linux tell endings apart by case
-        let endings = SOUND_FILES
-            .into_iter()
-            .flat_map(|ending| [ending.to_owned(), ending.to_uppercase()])
+        let endings = files
+            .iter()
+            .flat_map(|ending| [ending.to_string(), ending.to_uppercase()])
             .collect_vec();
         let chooser = rfd::AsyncFileDialog::new()
-            .set_title("Choose sound file")
-            .add_filter("Sound files", &endings)
+            .set_title(title)
+            .add_filter(filter, &endings)
             .add_filter("All files", &["*"])
             .set_directory(self.workspace.sound_directory(cue));
         Task::future(chooser.pick_file())
-            .and_then(move |chosen| Task::done(Message::SoundChosen(id, chosen.path().to_owned())))
+            .and_then(move |chosen| Task::done(Message::FileChosen(id, chosen.path().to_owned())))
     }
 
     /// Moves the selected cue by a number of places in its list, downwards

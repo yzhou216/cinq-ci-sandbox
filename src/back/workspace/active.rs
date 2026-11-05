@@ -3,20 +3,26 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 //! Cues that GO has fired, kept as bookkeeping without side effects, with
-//! what they do once their pre-wait is over and the fades they make
+//! what they do once their pre-wait is over and the fades they make, which
+//! [`effect`] describes, and what audio and video cues play, which
+//! [`playing`] tells
 //!
 //! Time here is counted in seconds as `f64`, since a clock that adds a
 //! tick forty times a second for an hour would drift by seconds in `f32`.
 
-use crate::back::{Clip, Cue, CueId, Kind};
+mod effect;
+mod playing;
+
+use crate::back::{Cue, CueId, Kind};
+pub(in crate::back) use effect::{Effect, Fade};
 
 /// Cue that GO has fired and that has not finished yet
 ///
 /// A fired cue keeps its timing and its effect, such as the clip of an
-/// audio cue, as its cue had them when GO fired it, so that an edit changes
-/// the next run of a cue and not the one under way.  Only a running audio
-/// cue follows an edit at once: it takes a new level, and it stops when it
-/// gets a new file.
+/// audio or video cue, as its cue had them when GO fired it, so that an
+/// edit changes the next run of a cue and not the one under way.  Only a
+/// running audio or video cue follows an edit at once: it takes a new
+/// level, and it stops when it gets a new file.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Active {
     pub id: CueId,
@@ -29,7 +35,7 @@ pub struct Active {
     /// Seconds since GO, negative while the cue waits its turn in a chain
     pub(super) elapsed: f64,
     pub paused: bool,
-    /// Level in dB an audio cue plays at
+    /// Level in dB an audio or video cue plays at
     pub level: f32,
     /// Fade under way on the level
     pub fade: Option<Fade>,
@@ -43,8 +49,8 @@ pub struct Active {
     pub(super) started: bool,
 }
 
-/// Where an active cue is in its lifetime.  An audio cue whose clip loops
-/// stays [`Phase::Looping`] until something stops it.
+/// Where an active cue is in its lifetime.  An audio or video cue whose
+/// clip loops stays [`Phase::Looping`] until something stops it.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum Phase {
     Scheduled { starts_in: f64 },
@@ -60,12 +66,17 @@ impl Active {
         let length = f64::from(cue.action());
         let effect = match (cue.kind, cue.target) {
             (Kind::Audio, _) => cue.clip().map_or(Effect::Nothing, Effect::Sound),
+            (Kind::Video, _) => cue.clip().map_or(Effect::Nothing, |clip| Effect::Video {
+                clip,
+                sound: cue.sounds(),
+            }),
             (Kind::Fade, Some(target)) => Effect::Fade {
                 target,
                 fade: Fade {
                     by: Some(cue.id),
                     to: cue.level,
                     remaining: length,
+                    length,
                     then_stop: cue.stop_target,
                 },
             },
@@ -114,39 +125,10 @@ impl Active {
         progress as f32
     }
 
-    /// Returns the clip of an audio cue while it has a sound, paused or
-    /// not, which it has once its pre-wait is over
-    pub(in crate::back) fn sound(&self) -> Option<Clip> {
-        match (self.effect, self.phase()) {
-            (Effect::Sound(clip), Phase::Running { .. } | Phase::Looping) => Some(clip),
-            _ => None,
-        }
-    }
-
-    /// Returns the clip of an audio cue while it has yet to sound, waiting
-    /// for its turn in a chain or for its pre-wait to end
-    pub(in crate::back) fn pending(&self) -> Option<Clip> {
-        match (self.effect, self.phase()) {
-            (Effect::Sound(clip), Phase::Scheduled { .. } | Phase::PreWait { .. }) => Some(clip),
-            _ => None,
-        }
-    }
-
-    /// Returns whether the cue has a sound, paused or not
-    pub(super) fn sounding(&self) -> bool {
-        self.sound().is_some()
-    }
-
     /// Returns how many seconds of the action have passed, which tells
-    /// where in its clip the sound of an audio cue should be
+    /// where in its clip the sound and the picture of the cue should be
     pub(in crate::back) fn played(&self) -> f64 {
         (self.elapsed - self.pre_wait).max(0.0)
-    }
-
-    /// Returns whether the action goes on until something stops the cue,
-    /// as the clip of an audio cue that loops does
-    fn loops(&self) -> bool {
-        matches!(self.effect, Effect::Sound(Clip { looping: true, .. }))
     }
 
     /// Returns whether the cue still waits for an earlier cue of its chain
@@ -218,40 +200,4 @@ impl Active {
             None => self,
         }
     }
-}
-
-/// Change to the level of an audio cue that a fade cue or a panic makes
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub struct Fade {
-    /// Fade cue making the change, or `None` for a panic
-    pub(in crate::back) by: Option<CueId>,
-    /// Level in dB the fade ends at
-    pub(in crate::back) to: f32,
-    /// Seconds until the fade ends
-    pub(in crate::back) remaining: f64,
-    /// Whether the faded cue stops once the fade ends
-    pub(in crate::back) then_stop: bool,
-}
-
-impl Fade {
-    /// Returns whether a newer fade may take over from this one.  Nothing
-    /// takes over from a panic, and only a fade that stops the cue takes
-    /// over from another that stops it, so that no fade brings back a cue
-    /// on its way out.
-    pub(in crate::back) fn yields_to(&self, newer: &Fade) -> bool {
-        self.by.is_some() && (newer.then_stop || !self.then_stop)
-    }
-}
-
-/// What a fired cue does once its pre-wait is over
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub(in crate::back) enum Effect {
-    /// Plays a clip of the sound file of an audio cue
-    Sound(Clip),
-    /// Makes a fade on the level of a cue
-    Fade { target: CueId, fade: Fade },
-    /// Stops a cue
-    Stop(CueId),
-    /// Takes time and does nothing else, as wait and memo cues do
-    Nothing,
 }

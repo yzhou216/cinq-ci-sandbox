@@ -48,7 +48,10 @@ fn chosen_sound_file_names_a_cue_until_the_operator_names_it() {
 /// Returns an audio cue whose file has loaded as ten seconds of sound
 fn loaded(cue: Cue) -> Cue {
     Cue {
-        media: Media::Loaded { duration: 10.0 },
+        media: Media::Loaded {
+            duration: 10.0,
+            sound: true,
+        },
         ..cue
     }
 }

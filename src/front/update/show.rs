@@ -83,7 +83,7 @@ impl Show {
     }
 
     /// Returns the directory of the file of the show, which the relative
-    /// paths of its sound files go from, or none while it has no file
+    /// paths of the files of its cues go from, or none while it has no file
     fn directory(&self) -> Option<&Path> {
         self.file.as_deref().and_then(Path::parent)
     }
@@ -94,7 +94,7 @@ impl Show {
 pub struct Read {
     /// File of the show, or none for a new show without one
     file: Option<PathBuf>,
-    /// Directory that the relative paths of its sound files go from
+    /// Directory that the relative paths of the files of its cues go from
     directory: PathBuf,
     /// Text of the file, or none when there is no such file yet, or why it
     /// cannot be read
@@ -107,7 +107,7 @@ pub struct Read {
 impl Read {
     /// Reads the show in `file`, or a new show without one, along with the
     /// unsaved changes kept for it in `unsaved_directory`.  A new show finds
-    /// its sound files from the directory that cinq started in.
+    /// the files of its cues from the directory that cinq started in.
     fn new(file: Option<PathBuf>, unsaved_directory: Option<&Path>) -> Self {
         let directory = file
             .as_deref()

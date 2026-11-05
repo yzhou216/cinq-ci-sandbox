@@ -9,7 +9,8 @@
 //! only by sending back-end commands.  Operator input arrives as a
 //! [`Message`], [`update`] applies it, and [`view`] draws the result.  Keys
 //! become messages through [`keymap`], whose bindings a configuration file
-//! can change.
+//! can change.  Besides the main window, a stage window shows the pictures
+//! of video cues once the show holds one.
 
 mod keymap;
 mod message;
@@ -24,22 +25,22 @@ use std::{
 
 use iced::{Size, window};
 
-use crate::back::{Audio, CueId, CueList, Kind, Workspace};
+use crate::back::{Audio, CueId, CueList, Kind, Video, Workspace};
 use keymap::{Press, config::Config};
 use message::{Focus, Message, Tab};
-use update::{Keeper, Show};
+use update::{Keeper, Show, Stage};
 
-/// Opens the window with the show in `show`, or a new show without one,
-/// and runs the interface until the window closes.  The key bindings come
-/// from `config.toml` in `config_dir`, when it is given, and otherwise from
-/// the platform's configuration directory.
+/// Opens the main window with the show in `show`, or a new show without
+/// one, and runs the interface until the main window closes.  The key
+/// bindings come from `config.toml` in `config_dir`, when it is given, and
+/// otherwise from the platform's configuration directory.
 pub fn run(config_dir: Option<PathBuf>, show: Option<PathBuf>) -> iced::Result {
     if let Some(missing) = no_wayland() {
         return Err(missing);
     }
     let config = keymap::config::file(config_dir.as_deref());
     let show = show.map(|show| path::absolute(&show).unwrap_or(show));
-    iced::application(
+    iced::daemon(
         move || Cinq::new(config.as_deref(), show.clone()),
         Cinq::update,
         Cinq::view,
@@ -52,8 +53,17 @@ pub fn run(config_dir: Option<PathBuf>, show: Option<PathBuf>) -> iced::Result {
         ..iced::Settings::default()
     })
     .subscription(Cinq::subscription)
-    .window(window::Settings {
-        size: Size::new(1440.0, 900.0),
+    .run()
+}
+
+/// Size that the main window opens at
+const MAIN_SIZE: Size = Size::new(1440.0, 900.0);
+
+/// Returns the settings of a window that opens `size` big, as the main
+/// window and the stage window do
+fn window_settings(size: Size) -> window::Settings {
+    window::Settings {
+        size,
         // Application ID for window manager rules, since some window
         // managers float a window whose ID iced has left empty
         #[cfg(target_os = "linux")]
@@ -62,8 +72,7 @@ pub fn run(config_dir: Option<PathBuf>, show: Option<PathBuf>) -> iced::Result {
             ..window::settings::PlatformSpecific::default()
         },
         ..window::Settings::default()
-    })
-    .run()
+    }
 }
 
 /// Returns why the window cannot open on GNU/Linux and the BSDs, where cinq
@@ -88,13 +97,14 @@ fn no_wayland() -> Option<iced::Error> {
     })
 }
 
-/// Interface together with the sound output, which plays what the
+/// Interface together with the sound and video output, which play what the
 /// interface shows, and the keeper of the unsaved changes of the show.
 /// These stay apart from the state of the interface, since they are the
 /// parts with side effects, which only [`Cinq::update`] reaches.
 struct Cinq {
     app: App,
     audio: Audio,
+    video: Video,
     keeper: Keeper,
 }
 
@@ -102,6 +112,10 @@ struct Cinq {
 #[derive(Default)]
 struct App {
     workspace: Workspace,
+    /// Main window, once it has been asked for, whose closing quits cinq
+    main: Option<window::Id>,
+    /// Stage window, with the pictures of the video cues that play
+    stage: Stage,
     /// File of the show, and what it holds
     show: Show,
     /// What went wrong with show files last, until opening or saving one
@@ -136,7 +150,7 @@ struct App {
     /// Why the link that the help page opened last failed to open, which
     /// the page shows while it stays open
     link_problem: Option<String>,
-    /// Whether the files of audio cues are being loaded
+    /// Whether the files of audio and video cues are being loaded
     loading: bool,
     /// Whether the files that could not be played are being read again
     rechecking: bool,
@@ -166,6 +180,15 @@ impl App {
     /// not
     fn running(&self) -> bool {
         self.workspace.active().iter().any(|active| !active.paused)
+    }
+
+    /// Returns whether the picture of any video cue moves, as it does while
+    /// the cue shows it and is not paused
+    fn moving_pictures(&self) -> bool {
+        self.workspace
+            .active()
+            .iter()
+            .any(|active| active.shows_picture() && !active.paused)
     }
 }
 

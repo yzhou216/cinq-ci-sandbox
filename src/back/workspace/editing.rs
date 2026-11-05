@@ -189,14 +189,15 @@ impl Workspace {
     }
 
     /// Edits a cue without recording the edit, as undo and redo edit it.
-    /// A running audio cue stops when it gets a new file, and it takes a
-    /// new level at once, which ends a fade on it.  A cue that a panic or a
-    /// fade is stopping keeps fading out, so that no edit brings it back.
+    /// A running audio or video cue stops when it gets a new file, and it
+    /// takes a new level at once, which ends a fade on it.  A cue that a
+    /// panic or a fade is stopping keeps fading out, so that no edit brings
+    /// it back.
     pub(super) fn changed(self, id: CueId, edit: Edit) -> Self {
-        let audio = self.cue(id).is_some_and(|cue| cue.kind == Kind::Audio);
+        let plays = self.cue(id).is_some_and(|cue| cue.kind.plays_file());
         let workspace = match edit {
             Edit::File(_) | Edit::Sound { .. } => self.stopped(id),
-            Edit::Level(level) if audio => self.with_active(id, |active| match active.fade {
+            Edit::Level(level) if plays => self.with_active(id, |active| match active.fade {
                 Some(fade) if fade.then_stop => active,
                 _ => Active {
                     level,

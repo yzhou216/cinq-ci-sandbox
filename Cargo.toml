@@ -16,6 +16,7 @@ dirs = "7.0"
 iced = { version = "0.14", default-features = false, features = [ # Wayland alone, and cinq's own theme
   "advanced",
   "crisp",
+  "image-without-codecs", # Pictures of video cues, which come decoded
   "tiny-skia",
   "tokio",
   "wayland",
@@ -25,16 +26,20 @@ iced = { version = "0.14", default-features = false, features = [ # Wayland alon
 itertools = "0.15"
 keyboard-types = "0.8"
 kira = { version = "0.12", default-features = false, features = [
+  "aac",
   "cpal",
   "flac",
+  "isomp4",
   "mp3",
   "ogg",
   "pcm",
   "vorbis",
   "wav",
 ] }
+mp4 = "0.14" # Tracks and samples of the files of video cues
 notify-debouncer-full = "0.7"
 open = "5.4"
+openh264 = "0.9" # Cisco's H.264 decoder, built from its vendored source
 pathdiff = "0.2"
 rayon = "1.12"
 rfd = "0.17"

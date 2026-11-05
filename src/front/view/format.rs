@@ -30,14 +30,16 @@ pub fn wait(seconds: f64) -> String {
 }
 
 /// Formats the length of a cue's action: the length of the clip for an
-/// audio cue, marked when it loops, a question mark while that is unknown,
-/// and a dash for instant cues
+/// audio or video cue, marked when it loops, a question mark while that is
+/// unknown, and a dash for instant cues
 pub fn action(cue: &Cue) -> String {
     let length = clock(cue.action().into());
     match (cue.kind, &cue.media) {
-        (Kind::Audio, Media::Loaded { .. }) if cue.loops() => format!("{length} loop"),
-        (Kind::Audio, Media::Loaded { .. }) | (Kind::Fade | Kind::Wait, _) => length,
-        (Kind::Audio, _) => "?".to_owned(),
+        (Kind::Audio | Kind::Video, Media::Loaded { .. }) if cue.loops() => {
+            format!("{length} loop")
+        }
+        (Kind::Audio | Kind::Video, Media::Loaded { .. }) | (Kind::Fade | Kind::Wait, _) => length,
+        (Kind::Audio | Kind::Video, _) => "?".to_owned(),
         (Kind::Stop | Kind::Memo, _) => "-".to_owned(),
     }
 }
@@ -60,12 +62,12 @@ pub fn advance(advance: Advance) -> &'static str {
     }
 }
 
-/// Describes what a cue acts on: the file name of an audio cue, or the
-/// number of the cue that a fade or stop cue targets, or its quoted name
-/// when it has no number
+/// Describes what a cue acts on: the file name of an audio or video cue, or
+/// the number of the cue that a fade or stop cue targets, or its quoted
+/// name when it has no number
 pub fn target(workspace: &Workspace, cue: &Cue) -> String {
     match cue.kind {
-        Kind::Audio => cue
+        Kind::Audio | Kind::Video => cue
             .file_name()
             .and_then(|name| Path::new(name).file_name())
             .map_or_else(String::new, |name| name.to_string_lossy().into_owned()),
@@ -101,11 +103,11 @@ pub fn phase(active: &Active) -> String {
 
 /// Describes an active cue in full for the list of running cues: whether
 /// it is paused, where it is in its lifetime, whether a fade is changing
-/// its level, and the level of an audio cue
+/// its level, and the level of an audio or video cue that sounds
 pub fn activity(active: &Active, cue: &Cue) -> String {
     let paused = if active.paused { "paused, " } else { "" };
     let fading = active.fade.map_or("", |_| ", fading");
-    let level = if cue.kind == Kind::Audio {
+    let level = if cue.sounds() {
         format!(", {} dB", decibels(active.level))
     } else {
         String::new()
@@ -155,7 +157,7 @@ pub fn change(workspace: &Workspace, change: &Change) -> String {
                 Edit::Number(_) => format!("changed the number of cue {cue}"),
                 Edit::Name(_) => format!("changed the name of cue {cue}"),
                 Edit::File(_) => format!("changed the file of cue {cue}"),
-                Edit::Sound { .. } => format!("chose the sound file of cue {cue}"),
+                Edit::Sound { .. } => format!("chose the file of cue {cue}"),
                 Edit::Start(_) => format!("changed the start of cue {cue}"),
                 Edit::End(_) => format!("changed the end of cue {cue}"),
                 Edit::Loop(_) => format!("changed whether cue {cue} loops"),

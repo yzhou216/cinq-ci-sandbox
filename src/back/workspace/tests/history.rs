@@ -123,11 +123,24 @@ fn edits_or_moves_in_a_row_that_end_where_they_began_leave_nothing_to_undo() {
 fn undo_takes_back_only_the_setting_it_changed() {
     let reloaded = workspace(vec![audio(1)])
         .apply(rename(1, "Storm"))
-        .apply(loaded(1, "sound.ogg", Media::Loaded { duration: 20.0 }))
+        .apply(loaded(
+            1,
+            "sound.ogg",
+            Media::Loaded {
+                duration: 20.0,
+                sound: true,
+            },
+        ))
         .apply(Command::Undo);
     let cue = reloaded.cue(CueId(1)).expect("the cue is still there");
     assert_eq!(cue.name, "Sound");
-    assert_eq!(cue.media, Media::Loaded { duration: 20.0 });
+    assert_eq!(
+        cue.media,
+        Media::Loaded {
+            duration: 20.0,
+            sound: true
+        }
+    );
 }
 
 #[test]

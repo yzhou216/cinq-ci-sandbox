@@ -5,10 +5,10 @@
 //! View functions, which keep iced's default look, apart from the
 //! exceptions that [`theme`] lists, and only space the controls apart
 //!
-//! Each part of the window has a module of its own, with a `view` function
-//! that draws it.  The text of back-end values comes from
-//! [`format`](mod@format), the colors from [`theme`], and the widgets that
-//! iced lacks from [`widget`].
+//! Each part of the main window has a module of its own, with a `view`
+//! function that draws it, as does the stage window in [`stage`].  The
+//! text of back-end values comes from [`format`](mod@format), the colors
+//! from [`theme`], and the widgets that iced lacks from [`widget`].
 
 mod cue_table;
 mod format;
@@ -16,6 +16,7 @@ mod help;
 mod inspector;
 mod next_keys;
 mod sidebar;
+pub(super) mod stage;
 mod status_bar;
 pub(super) mod theme;
 mod toolbar;

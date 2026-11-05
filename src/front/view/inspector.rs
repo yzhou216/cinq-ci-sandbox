@@ -17,7 +17,7 @@ use strum::VariantArray;
 
 use super::{SPACING, char_width, format, keep_keys, theme};
 use crate::{
-    back::{Cue, Edit, Kind, LEVELS, parse_level},
+    back::{Cue, Edit, Kind, LEVELS, Media, parse_level},
     front::{App, Message, Tab},
 };
 use field::Field;
@@ -94,11 +94,11 @@ fn form<'a>(app: &'a App, cue: &'a Cue, fields: &[Field]) -> Element<'a, Message
     .into()
 }
 
-/// Part of its sound file that an audio cue plays, and whether it loops,
-/// which become read-only in show mode
+/// Part of its file that an audio or video cue plays, and whether it
+/// loops, which become read-only in show mode
 fn time<'a>(app: &'a App, cue: &'a Cue) -> Element<'a, Message> {
-    if cue.kind != Kind::Audio {
-        return text(format!("{} cues play no sound file", cue.kind)).into();
+    if !cue.kind.plays_file() {
+        return text(format!("{} cues play no file", cue.kind)).into();
     }
     let id = cue.id;
     let looping = checkbox(cue.looping)
@@ -112,12 +112,16 @@ fn time<'a>(app: &'a App, cue: &'a Cue) -> Element<'a, Message> {
         .into()
 }
 
-/// Level of an audio cue, or the level a fade cue fades to, on a slider
-/// and in a field that takes the level typed in dB, which become read-only
-/// in show mode
+/// Level of an audio or video cue, or the level a fade cue fades to, on a
+/// slider and in a field that takes the level typed in dB, which become
+/// read-only in show mode.  A video cue whose file holds a picture alone
+/// says so in their place.
 fn levels<'a>(app: &'a App, cue: &'a Cue) -> Element<'a, Message> {
     let label = match cue.kind {
-        Kind::Audio => "Level",
+        Kind::Video if matches!(cue.media, Media::Loaded { sound: false, .. }) => {
+            return text("The file of this cue holds no sound").into();
+        }
+        Kind::Audio | Kind::Video => "Level",
         Kind::Fade => "Fade target to",
         Kind::Stop | Kind::Wait | Kind::Memo => {
             return text(format!("{} cues have no level", cue.kind)).into();

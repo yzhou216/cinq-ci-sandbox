@@ -116,7 +116,7 @@ fn sound_file_chosen_for_a_new_cue_names_it_by_its_path_from_the_show() {
     };
     let (added, _) = app.handled(Message::Add(Place::After));
     let id = added.selected.expect("a new cue is selected");
-    let chosen = Message::SoundChosen(id, "/show/sounds/storm.ogg".into());
+    let chosen = Message::FileChosen(id, "/show/sounds/storm.ogg".into());
     let (chosen, _) = added.handled(chosen);
     let cue = chosen.workspace.cue(id).unwrap();
     assert_eq!(

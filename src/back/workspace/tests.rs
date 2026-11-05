@@ -9,6 +9,7 @@ mod editing;
 mod history;
 mod playback;
 mod show;
+mod video;
 
 use super::{Workspace, playback::PANIC_FADE};
 use crate::back::{
@@ -21,7 +22,16 @@ fn workspace(cues: Vec<Cue>) -> Workspace {
     let workspace = Workspace::new(vec![CueList::new("Main", cues)]);
     let loads: Vec<Command> = workspace
         .unloaded()
-        .map(|cue| loaded(cue.id.0, &cue.file, Media::Loaded { duration: 10.0 }))
+        .map(|cue| {
+            loaded(
+                cue.id.0,
+                &cue.file,
+                Media::Loaded {
+                    duration: 10.0,
+                    sound: true,
+                },
+            )
+        })
         .collect();
     loads.into_iter().fold(workspace, Workspace::apply)
 }
